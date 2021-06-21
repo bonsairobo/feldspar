@@ -1,0 +1,31 @@
+[package]
+name = "feldspar"
+version = "0.1.0"
+authors = ["Duncan <bonsairobo@gmail.com>"]
+edition = "2018"
+
+[profile]
+dev = { opt-level = 2 }
+release = { lto = "thin" }
+
+[dependencies]
+approx = "0.4"
+bytemuck = "1.7"
+ron = "0.6"
+serde = "1.0"
+thread_local = "1.0"
+
+[dependencies.bevy]
+version = "0.5"
+# path = "../bevy"
+# git = "https://github.com/bevyengine/bevy"
+# rev = "7a511394"
+default-features = false
+features = ["bevy_wgpu", "render", "png", "x11"]
+
+[dependencies.building-blocks]
+git = "https://github.com/bonsairobo/building-blocks"
+rev = "bca3541"
+# path = "../building-blocks"
+default-features = false
+features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled"]
