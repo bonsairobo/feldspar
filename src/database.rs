@@ -21,6 +21,10 @@ impl VoxelWorldDb {
         }
     }
 
+    pub fn chunks(&self) -> &SdfChunkDb {
+        &self.chunks
+    }
+
     pub async fn load_chunks_into_map(
         &self,
         lod: u8,
