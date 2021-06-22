@@ -36,6 +36,7 @@ impl VoxelWorldDb {
         let orthant_exponent = orthant_edge_length.trailing_zeros() as i32;
         self.chunks
             .read_orthants_covering_extent(lod, orthant_exponent, extent, |key, chunk| {
+                log::debug!("Inserting chunk {:?}", key);
                 editor.insert_chunk(key.minimum, chunk)
             })
             .await

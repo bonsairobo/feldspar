@@ -11,6 +11,7 @@ release = { lto = "thin" }
 [dependencies]
 approx = "0.4"
 bytemuck = "1.7"
+log = "0.4"
 ron = "0.6"
 serde = "1.0"
 thread_local = "1.0"
