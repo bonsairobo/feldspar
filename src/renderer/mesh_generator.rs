@@ -77,6 +77,7 @@ fn mesh_generator_system(
 
     for (chunk_key, item) in new_chunk_meshes.into_iter() {
         let old_mesh = if let Some((mesh, material_counts)) = item {
+            log::debug!("Creating chunk mesh for {:?}", chunk_key);
             chunk_meshes.entities.insert(
                 chunk_key,
                 commands
