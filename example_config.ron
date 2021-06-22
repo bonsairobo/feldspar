@@ -1,5 +1,4 @@
 (
-    wireframes: false,
     chunk_shape: ((16, 16, 16)),
     chunk_cache: (
         max_cached_chunks: 100000,

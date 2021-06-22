@@ -1,6 +1,5 @@
 //! The Feldspar voxel plugin for Bevy Engine.
 
-mod assets;
 mod bvt;
 mod config;
 mod database;
@@ -12,13 +11,15 @@ mod world;
 use bvt::*;
 use renderer::*;
 use thread_local_resource::*;
-use voxel_data::*;
 
 pub use bvt::VoxelBvt;
 pub use config::Config;
 pub use database::VoxelWorldDb;
-pub use voxel_data::{SdfVoxelMap, VoxelEditor};
+pub use renderer::VoxelRenderAssets;
+pub use voxel_data::*;
 pub use world::VoxelWorldPlugin;
+
+pub use building_blocks as bb;
 
 use bevy::ecs::component::Component;
 use std::fmt::Debug;

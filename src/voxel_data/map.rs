@@ -1,6 +1,6 @@
 use crate::{
-    ThreadLocalResource, ThreadLocalResourceHandle, VoxelType, VoxelTypeInfo,
-    EMPTY_SIGNED_DISTANCE, EMPTY_VOXEL_TYPE,
+    ThreadLocalResource, ThreadLocalResourceHandle, VoxelMaterial, VoxelType, VoxelTypeInfo,
+    EMPTY_SIGNED_DISTANCE,
 };
 
 use building_blocks::prelude::*;
@@ -14,7 +14,28 @@ impl SdfVoxelMap {
     pub fn new_empty(chunk_shape: Point3i) -> Self {
         Self {
             voxels: empty_compressible_sdf_chunk_map(chunk_shape),
-            palette: SdfVoxelPalette::new_empty(),
+            palette: SdfVoxelPalette::new(vec![
+                VoxelTypeInfo {
+                    is_empty: true,
+                    material: VoxelMaterial::NULL,
+                },
+                VoxelTypeInfo {
+                    is_empty: false,
+                    material: VoxelMaterial(0),
+                },
+                VoxelTypeInfo {
+                    is_empty: false,
+                    material: VoxelMaterial(1),
+                },
+                VoxelTypeInfo {
+                    is_empty: false,
+                    material: VoxelMaterial(2),
+                },
+                VoxelTypeInfo {
+                    is_empty: false,
+                    material: VoxelMaterial(3),
+                },
+            ]),
         }
     }
 
@@ -41,8 +62,8 @@ pub struct SdfVoxelPalette {
 }
 
 impl SdfVoxelPalette {
-    pub fn new_empty() -> Self {
-        Self { infos: Vec::new() }
+    pub fn new(infos: Vec<VoxelTypeInfo>) -> Self {
+        Self { infos }
     }
 
     pub fn get_voxel_type_info(&self, voxel: VoxelType) -> &VoxelTypeInfo {
@@ -51,7 +72,7 @@ impl SdfVoxelPalette {
 }
 
 pub fn sdf_chunk_map_builder(chunk_shape: Point3i) -> SdfChunkMapBuilder {
-    SdfChunkMapBuilder::new(chunk_shape, (EMPTY_VOXEL_TYPE, EMPTY_SIGNED_DISTANCE))
+    SdfChunkMapBuilder::new(chunk_shape, (VoxelType::EMPTY, EMPTY_SIGNED_DISTANCE))
 }
 
 pub fn empty_compressible_sdf_chunk_map(chunk_shape: Point3i) -> CompressibleSdfChunkMap {

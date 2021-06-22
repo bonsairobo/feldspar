@@ -31,19 +31,19 @@ pub struct MeshMaterial(pub Handle<ArrayMaterial>);
 /// **NOTE**: Expects the `MeshMaterial` resource to exist before running. You should specify the state `S` when things have
 /// loaded and this resource exists.
 pub struct MeshGeneratorPlugin<S> {
-    loaded_state: S,
+    update_state: S,
 }
 
 impl<S> MeshGeneratorPlugin<S> {
-    pub fn new(loaded_state: S) -> Self {
-        Self { loaded_state }
+    pub fn new(update_state: S) -> Self {
+        Self { update_state }
     }
 }
 
 impl<S: BevyState> Plugin for MeshGeneratorPlugin<S> {
     fn build(&self, app: &mut AppBuilder) {
         app.insert_resource(ChunkMeshes::default()).add_system_set(
-            SystemSet::on_update(self.loaded_state.clone())
+            SystemSet::on_update(self.update_state.clone())
                 .with_system(mesh_generator_system.system()),
         );
     }

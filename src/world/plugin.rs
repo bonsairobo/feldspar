@@ -4,14 +4,14 @@ use bevy::app::prelude::*;
 
 pub struct VoxelWorldPlugin<S> {
     config: Config,
-    loaded_state: S,
+    update_state: S,
 }
 
 impl<S> VoxelWorldPlugin<S> {
-    pub fn new(config: Config, loaded_state: S) -> Self {
+    pub fn new(config: Config, update_state: S) -> Self {
         Self {
             config,
-            loaded_state,
+            update_state,
         }
     }
 }
@@ -22,7 +22,7 @@ impl<S: BevyState> Plugin for VoxelWorldPlugin<S> {
             self.config.chunk_shape,
             self.config.chunk_cache,
         ))
-        .add_plugin(VoxelRenderPlugin::new(self.loaded_state.clone()))
+        .add_plugin(VoxelRenderPlugin::new(self.update_state.clone()))
         .add_plugin(BvtPlugin);
     }
 }

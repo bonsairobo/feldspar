@@ -7,7 +7,6 @@ use serde::Deserialize;
 pub struct Config {
     pub chunk_shape: Point3i,
     pub chunk_cache: ChunkCacheConfig,
-    pub wireframes: bool,
 }
 
 impl Config {
