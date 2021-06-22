@@ -51,4 +51,8 @@ impl<'a> VoxelEditor<'a> {
     pub fn insert_chunk(&mut self, chunk_key: Point3i, chunk: SdfArray) {
         self.edit_buffer.insert_chunk(false, chunk_key, chunk);
     }
+
+    pub fn edit_buffer_is_empty(&self) -> bool {
+        self.edit_buffer.is_empty()
+    }
 }

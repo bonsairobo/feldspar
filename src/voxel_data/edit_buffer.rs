@@ -22,6 +22,10 @@ impl EditBuffer {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.edited_voxels.storage().is_empty()
+    }
+
     /// This function does read-modify-write of the voxels in `extent`. If a chunk is missing from the backbuffer, it will be
     /// copied from the `reader` before being written.
     ///
