@@ -48,6 +48,7 @@ fn octree_generator_system(
         if octree.is_empty() {
             voxel_bvt.remove(&chunk_min);
         } else {
+            log::debug!("Inserting chunk OctreeBvt for {:?}", chunk_min);
             voxel_bvt.insert(chunk_min, octree);
         }
     }
