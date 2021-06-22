@@ -25,7 +25,8 @@ features = ["bevy_wgpu", "render", "png", "x11"]
 
 [dependencies.building-blocks]
 git = "https://github.com/bonsairobo/building-blocks"
-rev = "b8d7e0d"
+branch = "main"
+# rev = "a2d27db"
 # path = "../building-blocks"
 default-features = false
 features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled"]
