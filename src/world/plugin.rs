@@ -27,6 +27,9 @@ impl<S: BevyState> Plugin for VoxelWorldPlugin<S> {
             ))
             .add_plugin(VoxelRenderPlugin::new(self.update_state.clone()))
             .add_plugin(BvtPlugin)
-            .add_system(chunk_loader_system.system());
+            .add_system_set(
+                SystemSet::on_update(self.update_state.clone())
+                    .with_system(chunk_loader_system.system()),
+            );
     }
 }
