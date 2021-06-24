@@ -5,9 +5,9 @@ use super::{
     empty_chunk_remover::empty_chunk_remover_system,
     EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache,
 };
+use crate::MapConfig;
 
 use bevy::{app::prelude::*, ecs::prelude::*};
-use building_blocks::core::Point3i;
 
 pub use super::chunk_compressor::ChunkCacheConfig;
 
@@ -26,14 +26,14 @@ pub use super::chunk_compressor::ChunkCacheConfig;
 /// **WARNING**: Cached reads will always be flushed before double-buffered writes. This means if you try to write directly into
 /// the `SdfVoxelMap`, you risk having your changes overwritten by the flush.
 pub struct VoxelDataPlugin {
-    chunk_shape: Point3i,
+    map_config: MapConfig,
     cache_config: ChunkCacheConfig,
 }
 
 impl VoxelDataPlugin {
-    pub fn new(chunk_shape: Point3i, cache_config: ChunkCacheConfig) -> Self {
+    pub fn new(map_config: MapConfig, cache_config: ChunkCacheConfig) -> Self {
         Self {
-            chunk_shape,
+            map_config,
             cache_config,
         }
     }
@@ -42,8 +42,8 @@ impl VoxelDataPlugin {
 impl Plugin for VoxelDataPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.insert_resource(self.cache_config)
-            .insert_resource(SdfVoxelMap::new_empty(self.chunk_shape))
-            .insert_resource(EditBuffer::new(self.chunk_shape))
+            .insert_resource(SdfVoxelMap::new_empty(self.map_config))
+            .insert_resource(EditBuffer::new(self.map_config.chunk_shape))
             .insert_resource(DirtyChunks::default())
             .insert_resource(EmptyChunks::default())
             // Each thread gets its own local chunk cache. The local caches are flushed into the global cache in the

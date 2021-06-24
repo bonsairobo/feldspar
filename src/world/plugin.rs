@@ -1,6 +1,8 @@
+use super::chunk_loader_system;
+
 use crate::{BevyState, BvtPlugin, Config, VoxelDataPlugin, VoxelRenderPlugin};
 
-use bevy::app::prelude::*;
+use bevy::{app::prelude::*, ecs::prelude::*};
 
 pub struct VoxelWorldPlugin<S> {
     config: Config,
@@ -18,11 +20,13 @@ impl<S> VoxelWorldPlugin<S> {
 
 impl<S: BevyState> Plugin for VoxelWorldPlugin<S> {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_plugin(VoxelDataPlugin::new(
-            self.config.chunk_shape,
-            self.config.chunk_cache,
-        ))
-        .add_plugin(VoxelRenderPlugin::new(self.update_state.clone()))
-        .add_plugin(BvtPlugin);
+        app.insert_resource(self.config)
+            .add_plugin(VoxelDataPlugin::new(
+                self.config.map,
+                self.config.chunk_cache,
+            ))
+            .add_plugin(VoxelRenderPlugin::new(self.update_state.clone()))
+            .add_plugin(BvtPlugin)
+            .add_system(chunk_loader_system.system());
     }
 }

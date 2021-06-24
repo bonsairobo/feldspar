@@ -17,7 +17,7 @@ pub use config::Config;
 pub use database::VoxelWorldDb;
 pub use renderer::VoxelRenderAssets;
 pub use voxel_data::*;
-pub use world::VoxelWorldPlugin;
+pub use world::{VoxelWorldPlugin, Witness};
 
 pub use building_blocks as bb;
 

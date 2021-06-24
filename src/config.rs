@@ -1,12 +1,12 @@
-use crate::ChunkCacheConfig;
+use crate::{ChunkCacheConfig, MapConfig};
 
-use building_blocks::core::Point3i;
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Deserialize, Default)]
 pub struct Config {
-    pub chunk_shape: Point3i,
+    pub map: MapConfig,
     pub chunk_cache: ChunkCacheConfig,
+    pub witness_radius: i32,
 }
 
 impl Config {

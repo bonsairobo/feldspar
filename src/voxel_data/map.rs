@@ -4,15 +4,41 @@ use crate::{
 };
 
 use building_blocks::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MapConfig {
+    pub superchunk_shape: Point3i,
+    pub chunk_shape: Point3i,
+    pub num_lods: u8,
+}
+
+impl Default for MapConfig {
+    fn default() -> Self {
+        Self {
+            superchunk_shape: Point3i::fill(256),
+            chunk_shape: Point3i::fill(16),
+            num_lods: 4,
+        }
+    }
+}
 
 pub struct SdfVoxelMap {
+    pub chunk_index: OctreeChunkIndex,
     pub voxels: CompressibleSdfChunkMap,
     pub palette: SdfVoxelPalette,
 }
 
 impl SdfVoxelMap {
-    pub fn new_empty(chunk_shape: Point3i) -> Self {
+    pub fn new_empty(config: MapConfig) -> Self {
+        let MapConfig {
+            superchunk_shape,
+            chunk_shape,
+            num_lods,
+        } = config;
+
         Self {
+            chunk_index: OctreeChunkIndex::new_empty(superchunk_shape, chunk_shape, num_lods),
             voxels: empty_compressible_sdf_chunk_map(chunk_shape),
             palette: SdfVoxelPalette::new(vec![
                 VoxelTypeInfo {

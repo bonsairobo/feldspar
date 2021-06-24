@@ -1,7 +1,12 @@
 (
-    chunk_shape: ((16, 16, 16)),
+    map: (
+        superchunk_shape: ((256, 256, 256)),
+        chunk_shape: ((16, 16, 16)),
+        num_lods: 4,
+    ),
     chunk_cache: (
         max_cached_chunks: 100000,
         max_chunks_compressed_per_frame_per_thread: 50,
-    )
+    ),
+    witness_radius: 800,
 )
