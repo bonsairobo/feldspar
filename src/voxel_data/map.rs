@@ -8,18 +8,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 pub struct MapConfig {
-    pub superchunk_shape: Point3i,
-    pub chunk_shape: Point3i,
+    pub superchunk_exponent: u8,
+    pub chunk_exponent: u8,
     pub num_lods: u8,
 }
 
 impl Default for MapConfig {
     fn default() -> Self {
         Self {
-            superchunk_shape: Point3i::fill(256),
-            chunk_shape: Point3i::fill(16),
+            superchunk_exponent: 9,
+            chunk_exponent: 4,
             num_lods: 4,
         }
+    }
+}
+
+impl MapConfig {
+    pub fn chunk_shape(&self) -> Point3i {
+        Point3i::fill(1 << self.chunk_exponent)
     }
 }
 
@@ -32,13 +38,15 @@ pub struct SdfVoxelMap {
 impl SdfVoxelMap {
     pub fn new_empty(config: MapConfig) -> Self {
         let MapConfig {
-            superchunk_shape,
-            chunk_shape,
+            superchunk_exponent,
+            chunk_exponent,
             num_lods,
         } = config;
 
+        let chunk_shape = Point3i::fill(1 << chunk_exponent);
+
         Self {
-            chunk_index: OctreeChunkIndex::new_empty(superchunk_shape, chunk_shape, num_lods),
+            chunk_index: OctreeChunkIndex::new_empty(superchunk_exponent, chunk_exponent, num_lods),
             voxels: empty_compressible_sdf_chunk_map(chunk_shape),
             palette: SdfVoxelPalette::new(vec![
                 VoxelTypeInfo {

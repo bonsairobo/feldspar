@@ -43,7 +43,7 @@ impl Plugin for VoxelDataPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.insert_resource(self.cache_config)
             .insert_resource(SdfVoxelMap::new_empty(self.map_config))
-            .insert_resource(EditBuffer::new(self.map_config.chunk_shape))
+            .insert_resource(EditBuffer::new(self.map_config.chunk_shape()))
             .insert_resource(DirtyChunks::default())
             .insert_resource(EmptyChunks::default())
             // Each thread gets its own local chunk cache. The local caches are flushed into the global cache in the
