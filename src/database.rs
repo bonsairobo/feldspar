@@ -25,6 +25,20 @@ impl VoxelWorldDb {
         &self.chunks
     }
 
+    pub async fn load_octant_into_map<'a>(
+        &self,
+        lod: u8,
+        octant: Octant,
+        editor: &mut VoxelEditor<'a>,
+    ) -> sled::Result<()> {
+        self.chunks
+            .read_chunks_in_orthant(lod, octant, |key, chunk| {
+                log::debug!("Inserting chunk {:?}", key);
+                editor.insert_chunk_and_touch_neighbors(key.minimum, chunk)
+            })
+            .await
+    }
+
     pub async fn load_chunks_into_map<'a>(
         &self,
         lod: u8,
@@ -37,7 +51,7 @@ impl VoxelWorldDb {
         self.chunks
             .read_orthants_covering_extent(lod, orthant_exponent, extent, |key, chunk| {
                 log::debug!("Inserting chunk {:?}", key);
-                editor.insert_chunk(key.minimum, chunk)
+                editor.insert_chunk_and_touch_neighbors(key.minimum, chunk)
             })
             .await
     }
