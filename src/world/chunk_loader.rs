@@ -20,6 +20,8 @@ pub fn chunk_loader_system(
             .map(|t| Point3f::from(t.translation).in_voxel())
             .unwrap_or(center);
 
+        witness.previous_transform = Some(*tfm);
+
         let prev_witness_extent = witness_superchunk_extent(
             prev_center,
             config.witness_radius,
@@ -30,6 +32,10 @@ pub fn chunk_loader_system(
             config.witness_radius,
             config.map.superchunk_exponent,
         );
+
+        if prev_witness_extent == witness_extent {
+            continue;
+        }
 
         // PERF: this could certainly be more efficient with sorted vecs or something
         let prev_superchunks = HashSet::<Point3i>::from_iter(prev_witness_extent.0.iter_points());
@@ -45,8 +51,6 @@ pub fn chunk_loader_system(
         // for old_superchunk in old_superchunks.into_iter() {
         //     editor.map.storage_mut().remove();
         // }
-
-        witness.previous_transform = Some(*tfm);
     }
 }
 
@@ -58,7 +62,7 @@ fn witness_superchunk_extent(
     let witness_min = center - Point3i::fill(radius);
     let witness_max = center + Point3i::fill(radius);
     let witness_extent =
-        Extent3i::from_min_and_shape(witness_min, witness_max) >> superchunk_exponent;
+        Extent3i::from_min_and_max(witness_min, witness_max) >> superchunk_exponent;
 
     ChunkUnits(witness_extent)
 }
