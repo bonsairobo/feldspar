@@ -25,7 +25,10 @@ impl<S: BevyState> Plugin for VoxelWorldPlugin<S> {
                 self.config.map,
                 self.config.chunk_cache,
             ))
-            .add_plugin(VoxelRenderPlugin::new(self.update_state.clone()))
+            .add_plugin(VoxelRenderPlugin::new(
+                self.update_state.clone(),
+                self.config.render,
+            ))
             .add_plugin(BvtPlugin)
             .add_system_set(
                 SystemSet::on_update(self.update_state.clone())

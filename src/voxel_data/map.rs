@@ -1,6 +1,6 @@
 use crate::{
-    ThreadLocalResource, ThreadLocalResourceHandle, VoxelMaterial, VoxelType, VoxelTypeInfo,
-    EMPTY_SIGNED_DISTANCE,
+    EditBuffer, ThreadLocalResource, ThreadLocalResourceHandle, VoxelMaterial, VoxelType,
+    VoxelTypeInfo, EMPTY_SIGNED_DISTANCE,
 };
 
 use building_blocks::prelude::*;
@@ -87,6 +87,18 @@ impl SdfVoxelMap {
         let local_cache = handle.get_or_create_with(SdfChunkCache::new);
 
         self.voxels.reader(local_cache)
+    }
+
+    pub fn unload_superchunk(&mut self, octant: Octant, edit_buffer: &mut EditBuffer) {
+        if let Some(octree) = self.chunk_index.pop_superchunk(octant.minimum()) {
+            octree.visit_all_points(|chunk_p| {
+                let chunk_min = chunk_p << self.chunk_index.chunk_exponent();
+                edit_buffer.mark_chunk_dirty(true, chunk_min);
+                self.voxels
+                    .storage_mut()
+                    .remove(ChunkKey::new(0, chunk_min));
+            });
+        }
     }
 }
 

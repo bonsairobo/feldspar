@@ -83,7 +83,7 @@ fn generate_octree_for_each_chunk(
     pool: &TaskPool,
 ) -> Vec<(Point3i, OctreeSet)> {
     pool.scope(|s| {
-        for chunk_min in dirty_chunks.edited_chunk_mins.clone().into_iter() {
+        for &chunk_min in dirty_chunks.edited_chunk_mins().clone().into_iter() {
             s.spawn(async move {
                 let cache_tls = local_caches.get();
                 let reader = map.reader(&cache_tls);

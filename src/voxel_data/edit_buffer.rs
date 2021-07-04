@@ -23,7 +23,16 @@ impl EditBuffer {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.edited_voxels.storage().is_empty()
+        self.edited_voxels.storage().is_empty() && self.dirty_chunk_mins.is_empty()
+    }
+
+    pub fn mark_chunk_dirty(&mut self, touch_neighbors: bool, chunk_min: Point3i) {
+        // PERF: this could be more efficient if we just took the moore neighborhood in chunk space
+        let extent = self
+            .edited_voxels
+            .indexer
+            .extent_for_chunk_with_min(chunk_min);
+        self.dirty_chunks_for_extent(touch_neighbors, extent);
     }
 
     /// This function does read-modify-write of the voxels in `extent`. If a chunk is missing from the backbuffer, it will be
@@ -72,18 +81,13 @@ impl EditBuffer {
     }
 
     pub fn insert_chunk(&mut self, touch_neighbors: bool, chunk_min: Point3i, chunk: SdfArray) {
-        // PERF: this could be more efficient if we just took the moore neighborhood in chunk space
-        let extent = self
-            .edited_voxels
-            .indexer
-            .extent_for_chunk_with_min(chunk_min);
-        self.dirty_chunks_for_extent(touch_neighbors, extent);
+        self.mark_chunk_dirty(touch_neighbors, chunk_min);
         self.edited_voxels
             .write_chunk(ChunkKey::new(0, chunk_min), chunk);
     }
 
     /// Write all of the edited chunks into `dst_map`. Returns the dirty chunks.
-    pub fn merge_edits(self, dst_map: &mut CompressibleSdfChunkMap) -> DirtyChunks {
+    fn merge_edits(self, dst_map: &mut CompressibleSdfChunkMap) -> DirtyChunks {
         let EditBuffer {
             edited_voxels,
             dirty_chunk_mins,
@@ -124,8 +128,18 @@ impl EditBuffer {
 /// The sets of chunk keys that have either been edited directly or marked as dirty, by virtue of neighboring an edited chunk.
 #[derive(Default)]
 pub struct DirtyChunks {
-    pub edited_chunk_mins: Vec<Point3i>,
-    pub dirty_chunk_mins: SmallKeyHashSet<Point3i>,
+    edited_chunk_mins: Vec<Point3i>,
+    dirty_chunk_mins: SmallKeyHashSet<Point3i>,
+}
+
+impl DirtyChunks {
+    pub fn edited_chunk_mins(&self) -> &[Point3i] {
+        &self.edited_chunk_mins
+    }
+
+    pub fn dirty_chunk_mins(&self) -> &SmallKeyHashSet<Point3i> {
+        &self.dirty_chunk_mins
+    }
 }
 
 /// Merges edits from the `EditBuffer` into the `SdfVoxelMap`. By setting the `DirtyChunks` resource, the

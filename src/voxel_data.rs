@@ -8,7 +8,7 @@ mod plugin;
 mod voxel;
 
 pub use chunk_compressor::ChunkCacheConfig;
-pub use edit_buffer::DirtyChunks;
+pub use edit_buffer::{DirtyChunks, EditBuffer};
 pub use editor::VoxelEditor;
 pub use empty_chunk_remover::EmptyChunks;
 pub use map::*;

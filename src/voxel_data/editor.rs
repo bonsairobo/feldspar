@@ -22,8 +22,7 @@ impl<'a> VoxelEditor<'a> {
         self._edit_extent(false, extent, edit_func);
     }
 
-    /// Run `edit_func` on all voxels in `extent`. All edited chunks and their neighbors will be
-    /// marked as dirty.
+    /// Run `edit_func` on all voxels in `extent`. All edited chunks and their neighbors will be marked as dirty.
     pub fn edit_extent_and_touch_neighbors(
         &mut self,
         extent: Extent3i,
@@ -44,12 +43,12 @@ impl<'a> VoxelEditor<'a> {
             .edit_voxels_out_of_place(&reader, extent, edit_func, touch_neighbors);
     }
 
-    pub fn insert_chunk_and_touch_neighbors(&mut self, chunk_key: Point3i, chunk: SdfArray) {
-        self.edit_buffer.insert_chunk(true, chunk_key, chunk);
+    pub fn insert_chunk_and_touch_neighbors(&mut self, chunk_min: Point3i, chunk: SdfArray) {
+        self.edit_buffer.insert_chunk(true, chunk_min, chunk);
     }
 
-    pub fn insert_chunk(&mut self, chunk_key: Point3i, chunk: SdfArray) {
-        self.edit_buffer.insert_chunk(false, chunk_key, chunk);
+    pub fn insert_chunk(&mut self, chunk_min: Point3i, chunk: SdfArray) {
+        self.edit_buffer.insert_chunk(false, chunk_min, chunk);
     }
 
     pub fn edit_buffer_is_empty(&self) -> bool {

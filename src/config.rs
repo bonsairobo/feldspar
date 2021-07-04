@@ -1,10 +1,11 @@
-use crate::{ChunkCacheConfig, MapConfig};
+use crate::{ChunkCacheConfig, MapConfig, RenderConfig};
 
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Deserialize, Default)]
 pub struct Config {
     pub map: MapConfig,
+    pub render: RenderConfig,
     pub chunk_cache: ChunkCacheConfig,
     pub witness_radius: i32,
 }

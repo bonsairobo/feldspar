@@ -106,7 +106,7 @@ fn generate_mesh_for_each_chunk(
     pool: &ComputeTaskPool,
 ) -> Vec<(ChunkKey3, Option<(PosNormMesh, Vec<[u8; 4]>)>)> {
     pool.scope(|s| {
-        for chunk_min in dirty_chunks.dirty_chunk_mins.iter().cloned() {
+        for chunk_min in dirty_chunks.dirty_chunk_mins().iter().cloned() {
             let chunk_key = ChunkKey::new(0, chunk_min);
             s.spawn(async move {
                 let cache_tls = local_caches.get();

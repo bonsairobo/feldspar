@@ -1,8 +1,8 @@
-use crate::{VoxelEditor, VoxelType};
+use crate::{EditBuffer, SdfVoxelMap, VoxelType};
 
 use building_blocks::{
     core::prelude::*,
-    storage::{sled, ChunkDb3, FastArrayCompressionNx2, FromBytesCompression, Lz4, Sd8},
+    storage::{sled, ChunkDb3, ChunkKey, FastArrayCompressionNx2, FromBytesCompression, Lz4, Sd8},
 };
 
 pub struct VoxelWorldDb {
@@ -25,34 +25,31 @@ impl VoxelWorldDb {
         &self.chunks
     }
 
-    pub async fn load_octant_into_map<'a>(
+    /// Loads all chunks present in the given superchunk `octant` into the `SdfVoxelMap` and marks them dirty.
+    pub async fn load_superchunk_into_map<'a>(
         &self,
-        lod: u8,
         octant: Octant,
-        editor: &mut VoxelEditor<'a>,
+        map: &mut SdfVoxelMap,
+        edit_buffer: &mut EditBuffer,
     ) -> sled::Result<()> {
+        let mut chunk_mins = Vec::new();
         self.chunks
-            .read_chunks_in_orthant(lod, octant, |key, chunk| {
+            .read_chunks_in_orthant(0, octant, |key, chunk| {
                 log::debug!("Inserting chunk {:?}", key);
-                editor.insert_chunk_and_touch_neighbors(key.minimum, chunk)
-            })
-            .await
-    }
 
-    pub async fn load_chunks_into_map<'a>(
-        &self,
-        lod: u8,
-        extent: Extent3i,
-        editor: &mut VoxelEditor<'a>,
-    ) -> sled::Result<()> {
-        // Heuristic: We want the orthant edge length to be about 1/2 the extent's smallest dimension.
-        let orthant_edge_length = extent.shape.min_component() >> 1;
-        let orthant_exponent = orthant_edge_length.trailing_zeros() as i32;
-        self.chunks
-            .read_orthants_covering_extent(lod, orthant_exponent, extent, |key, chunk| {
-                log::debug!("Inserting chunk {:?}", key);
-                editor.insert_chunk_and_touch_neighbors(key.minimum, chunk)
+                edit_buffer.mark_chunk_dirty(true, key.minimum);
+                map.voxels.storage_mut().insert_chunk(key, chunk);
+                chunk_mins.push(key.minimum);
             })
-            .await
+            .await?;
+
+        if !chunk_mins.is_empty() {
+            map.chunk_index.insert_superchunk(
+                octant.minimum(),
+                chunk_mins.into_iter().map(|min| ChunkKey::new(0, min)),
+            );
+        }
+
+        Ok(())
     }
 }
