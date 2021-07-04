@@ -27,7 +27,6 @@ impl EditBuffer {
     }
 
     pub fn mark_chunk_dirty(&mut self, touch_neighbors: bool, chunk_min: Point3i) {
-        // PERF: this could be more efficient if we just took the moore neighborhood in chunk space
         let extent = self
             .edited_voxels
             .indexer
