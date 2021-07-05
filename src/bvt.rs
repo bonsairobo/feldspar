@@ -36,20 +36,28 @@ fn octree_generator_system(
     let new_empty_chunks: Vec<Point3i> = new_chunk_octrees
         .iter()
         .filter_map(|(chunk_min, octree)| {
-            if octree.is_empty() {
-                Some(*chunk_min)
+            if let Some(octree) = octree {
+                if octree.is_empty() {
+                    Some(*chunk_min)
+                } else {
+                    None
+                }
             } else {
-                None
+                Some(*chunk_min)
             }
         })
         .collect();
 
     for (chunk_min, octree) in new_chunk_octrees.into_iter() {
-        if octree.is_empty() {
-            voxel_bvt.remove(&chunk_min);
+        if let Some(octree) = octree {
+            if octree.is_empty() {
+                voxel_bvt.remove(&chunk_min);
+            } else {
+                log::debug!("Inserting chunk OctreeBvt for {:?}", chunk_min);
+                voxel_bvt.insert(chunk_min, octree);
+            }
         } else {
-            log::debug!("Inserting chunk OctreeBvt for {:?}", chunk_min);
-            voxel_bvt.insert(chunk_min, octree);
+            voxel_bvt.remove(&chunk_min);
         }
     }
 
@@ -81,19 +89,20 @@ fn generate_octree_for_each_chunk(
     map: &SdfVoxelMap,
     local_caches: &ThreadLocalVoxelCache,
     pool: &TaskPool,
-) -> Vec<(Point3i, OctreeSet)> {
+) -> Vec<(Point3i, Option<OctreeSet>)> {
     pool.scope(|s| {
-        for &chunk_min in dirty_chunks.edited_chunk_mins().clone().into_iter() {
+        for &chunk_min in dirty_chunks.changed_chunk_mins().clone().into_iter() {
             s.spawn(async move {
                 let cache_tls = local_caches.get();
                 let reader = map.reader(&cache_tls);
-                let chunk = reader.get_chunk(ChunkKey::new(0, chunk_min)).unwrap();
-                let transform_chunk = TransformMap::new(chunk, map.voxel_info_transform());
 
-                (
-                    chunk_min,
-                    OctreeSet::from_array3(&transform_chunk, *chunk.extent()),
-                )
+                let octree = reader.get_chunk(ChunkKey::new(0, chunk_min)).map(|chunk| {
+                    let transform_chunk = TransformMap::new(chunk, map.voxel_info_transform());
+
+                    OctreeSet::from_array3(&transform_chunk, *chunk.extent())
+                });
+
+                (chunk_min, octree)
             })
         }
     })

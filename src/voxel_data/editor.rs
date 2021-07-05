@@ -1,4 +1,4 @@
-use super::edit_buffer::EditBuffer;
+use super::change_buffer::ChangeBuffer;
 use crate::{SdfArray, SdfVoxelMap, ThreadLocalVoxelCache, VoxelType};
 use bevy::ecs::{prelude::*, system::SystemParam};
 use building_blocks::prelude::*;
@@ -9,49 +9,35 @@ use building_blocks::prelude::*;
 pub struct VoxelEditor<'a> {
     pub map: Res<'a, SdfVoxelMap>,
     pub local_cache: Res<'a, ThreadLocalVoxelCache>,
-    edit_buffer: ResMut<'a, EditBuffer>,
+    change_buffer: ResMut<'a, ChangeBuffer>,
 }
 
 impl<'a> VoxelEditor<'a> {
-    /// Run `edit_func` on all voxels in `extent`. Does not mark the neighbors of edited chunks.
-    pub fn edit_extent(
-        &mut self,
-        extent: Extent3i,
-        edit_func: impl FnMut(Point3i, (&mut VoxelType, &mut Sd8)),
-    ) {
-        self._edit_extent(false, extent, edit_func);
-    }
-
     /// Run `edit_func` on all voxels in `extent`. All edited chunks and their neighbors will be marked as dirty.
     pub fn edit_extent_and_touch_neighbors(
         &mut self,
         extent: Extent3i,
         edit_func: impl FnMut(Point3i, (&mut VoxelType, &mut Sd8)),
     ) {
-        self._edit_extent(true, extent, edit_func);
+        self._edit_extent(extent, edit_func);
     }
 
     fn _edit_extent(
         &mut self,
-        touch_neighbors: bool,
         extent: Extent3i,
         edit_func: impl FnMut(Point3i, (&mut VoxelType, &mut Sd8)),
     ) {
         let tls = self.local_cache.get();
         let reader = self.map.reader(&tls);
-        self.edit_buffer
-            .edit_voxels_out_of_place(&reader, extent, edit_func, touch_neighbors);
+        self.change_buffer
+            .edit_voxels_out_of_place(&reader, extent, edit_func);
     }
 
-    pub fn insert_chunk_and_touch_neighbors(&mut self, chunk_min: Point3i, chunk: SdfArray) {
-        self.edit_buffer.insert_chunk(true, chunk_min, chunk);
+    pub fn write_chunk_and_touch_neighbors(&mut self, chunk_min: Point3i, chunk: SdfArray) {
+        self.change_buffer.write_chunk(chunk_min, chunk);
     }
 
-    pub fn insert_chunk(&mut self, chunk_min: Point3i, chunk: SdfArray) {
-        self.edit_buffer.insert_chunk(false, chunk_min, chunk);
-    }
-
-    pub fn edit_buffer_is_empty(&self) -> bool {
-        self.edit_buffer.is_empty()
+    pub fn change_buffer_has_data(&self) -> bool {
+        self.change_buffer.has_data()
     }
 }

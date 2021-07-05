@@ -1,6 +1,4 @@
-use crate::{
-    world::witness_superchunk_extent, Config, EditBuffer, SdfVoxelMap, VoxelWorldDb, Witness,
-};
+use crate::{world::witness_superchunk_extent, ChangeBuffer, Config, VoxelWorldDb, Witness};
 
 use bevy::prelude::*;
 use bevy::tasks::ComputeTaskPool;
@@ -11,8 +9,7 @@ use std::iter::FromIterator;
 pub fn chunk_loader_system(
     config: Res<Config>,
     db: Res<VoxelWorldDb>,
-    mut map: ResMut<SdfVoxelMap>,
-    mut edit_buffer: ResMut<EditBuffer>,
+    mut change_buffer: ResMut<ChangeBuffer>,
     mut witnesses: Query<(&mut Witness, &Transform)>,
     pool: Res<ComputeTaskPool>,
 ) {
@@ -49,13 +46,13 @@ pub fn chunk_loader_system(
         for new_superchunk in new_superchunks.into_iter() {
             let octant = Octant::new(config.map.superchunk_exponent as i32, new_superchunk);
             pool.scope(|s| {
-                s.spawn(db.load_superchunk_into_map(octant, &mut map, &mut edit_buffer))
+                s.spawn(db.load_superchunk_into_change_buffer(octant, &mut change_buffer))
             });
         }
 
         for old_superchunk in old_superchunks.into_iter() {
             let octant = Octant::new(config.map.superchunk_exponent as i32, old_superchunk);
-            map.unload_superchunk(octant, &mut edit_buffer);
+            change_buffer.unload_superchunk(octant);
         }
     }
 }

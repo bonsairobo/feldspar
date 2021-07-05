@@ -1,8 +1,8 @@
-use crate::{EditBuffer, SdfVoxelMap, VoxelType};
+use crate::{ChangeBuffer, SdfArray, VoxelType};
 
 use building_blocks::{
     core::prelude::*,
-    storage::{sled, ChunkDb3, ChunkKey, FastArrayCompressionNx2, FromBytesCompression, Lz4, Sd8},
+    storage::{sled, ChunkDb3, ChunkKey3, FastArrayCompressionNx2, FromBytesCompression, Lz4, Sd8},
 };
 
 pub struct VoxelWorldDb {
@@ -25,31 +25,29 @@ impl VoxelWorldDb {
         &self.chunks
     }
 
-    /// Loads all chunks present in the given superchunk `octant` into the `SdfVoxelMap` and marks them dirty.
-    pub async fn load_superchunk_into_map<'a>(
+    /// Loads all chunks present in the given superchunk `octant` into the `ChangeBuffer` and marks them and their neighbors
+    /// dirty. These chunks will be processed alongside the edits to keep the data pipeline more consistent.
+    pub async fn load_superchunk_into_change_buffer<'a>(
         &self,
         octant: Octant,
-        map: &mut SdfVoxelMap,
-        edit_buffer: &mut EditBuffer,
+        change_buffer: &mut ChangeBuffer,
     ) -> sled::Result<()> {
-        let mut chunk_mins = Vec::new();
+        let mut chunks = Vec::new();
         self.chunks
             .read_chunks_in_orthant(0, octant, |key, chunk| {
-                log::debug!("Inserting chunk {:?}", key);
-
-                edit_buffer.mark_chunk_dirty(true, key.minimum);
-                map.voxels.storage_mut().insert_chunk(key, chunk);
-                chunk_mins.push(key.minimum);
+                chunks.push((key, chunk));
             })
             .await?;
 
-        if !chunk_mins.is_empty() {
-            map.chunk_index.insert_superchunk(
-                octant.minimum(),
-                chunk_mins.into_iter().map(|min| ChunkKey::new(0, min)),
-            );
+        if !chunks.is_empty() {
+            change_buffer.load_superchunk(LoadedSuperChunk { octant, chunks });
         }
 
         Ok(())
     }
+}
+
+pub struct LoadedSuperChunk {
+    pub octant: Octant,
+    pub chunks: Vec<(ChunkKey3, SdfArray)>,
 }

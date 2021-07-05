@@ -1,7 +1,7 @@
 use super::{
+    change_buffer::{double_buffering_system, ChangeBuffer, DirtyChunks},
     chunk_cache_flusher::chunk_cache_flusher_system,
     chunk_compressor::chunk_compressor_system,
-    edit_buffer::{double_buffering_system, DirtyChunks, EditBuffer},
     empty_chunk_remover::empty_chunk_remover_system,
     EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache,
 };
@@ -43,7 +43,7 @@ impl Plugin for VoxelDataPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.insert_resource(self.cache_config)
             .insert_resource(SdfVoxelMap::new_empty(self.map_config))
-            .insert_resource(EditBuffer::new(self.map_config.chunk_shape()))
+            .insert_resource(ChangeBuffer::new(self.map_config.chunk_shape()))
             .insert_resource(DirtyChunks::default())
             .insert_resource(EmptyChunks::default())
             // Each thread gets its own local chunk cache. The local caches are flushed into the global cache in the
@@ -54,13 +54,13 @@ impl Plugin for VoxelDataPlugin {
             .add_system_set_to_stage(
                 CoreStage::Last,
                 SystemSet::new()
-                    .before("merge_edits")
+                    .before("merge_changes")
                     .with_system(chunk_cache_flusher_system.system())
                     .with_system(empty_chunk_remover_system.system()),
             )
             .add_system_to_stage(
                 CoreStage::Last,
-                double_buffering_system.system().label("merge_edits"),
+                double_buffering_system.system().label("merge_changes"),
             )
             .add_system_to_stage(CoreStage::Last, chunk_compressor_system.system());
     }
