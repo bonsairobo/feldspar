@@ -15,31 +15,35 @@ pub fn chunk_loader_system(
 ) {
     for (mut witness, tfm) in witnesses.iter_mut() {
         let center = Point3f::from(tfm.translation).in_voxel();
-        let prev_center = witness
-            .previous_transform
-            .map(|t| Point3f::from(t.translation).in_voxel())
-            .unwrap_or(center);
-
-        witness.previous_transform = Some(*tfm);
-
-        let prev_witness_extent = witness_superchunk_extent(
-            prev_center,
-            config.witness_radius,
-            config.map.superchunk_exponent,
-        );
         let witness_extent = witness_superchunk_extent(
             center,
             config.witness_radius,
             config.map.superchunk_exponent,
         );
 
-        if prev_witness_extent == witness_extent {
-            continue;
-        }
+        let prev_transform = witness.previous_transform;
+        witness.previous_transform = Some(*tfm);
+
+        let prev_superchunks = if let Some(prev_transform) = prev_transform {
+            let prev_center = Point3f::from(prev_transform.translation).in_voxel();
+            let prev_witness_extent = witness_superchunk_extent(
+                prev_center,
+                config.witness_radius,
+                config.map.superchunk_exponent,
+            );
+
+            if prev_witness_extent == witness_extent {
+                continue;
+            }
+
+            HashSet::<Point3i>::from_iter(prev_witness_extent.0.iter_points())
+        } else {
+            // This is the first frame for this witness, so we need to spawn all superchunks in range.
+            HashSet::new()
+        };
 
         // PERF: this could certainly be more efficient with sorted vecs or something
         let superchunks = HashSet::<Point3i>::from_iter(witness_extent.0.iter_points());
-        let prev_superchunks = HashSet::<Point3i>::from_iter(prev_witness_extent.0.iter_points());
         let new_superchunks = &superchunks - &prev_superchunks;
         let old_superchunks = &prev_superchunks - &superchunks;
 

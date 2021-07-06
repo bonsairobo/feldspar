@@ -174,8 +174,8 @@ impl DirtyChunks {
     }
 }
 
-/// Merges changes from the `ChangeBuffer` into the `SdfVoxelMap`. By setting the `DirtyChunks` resource, the
-/// chunk post-processing systems will be notified to process dirty chunks on the next frame.
+/// Merges changes from the `ChangeBuffer` into the `SdfVoxelMap`. By setting the `DirtyChunks` resource, the chunk
+/// post-processing systems will be notified to process dirty chunks on the next frame.
 pub fn double_buffering_system(
     mut voxel_map: ResMut<SdfVoxelMap>,
     mut change_buffer: ResMut<ChangeBuffer>,
