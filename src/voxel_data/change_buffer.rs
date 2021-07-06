@@ -6,6 +6,8 @@ use crate::{
 use bevy::prelude::*;
 use building_blocks::{prelude::*, storage::SmallKeyHashSet};
 
+/// An ephemeral buffer that stores map changes for a single frame.
+///
 /// For the sake of pipelining, all voxels loaded or edited are first written out of place here. They will later be merged into
 /// the world map.
 pub struct ChangeBuffer {

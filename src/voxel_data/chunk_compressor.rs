@@ -1,7 +1,7 @@
-use crate::SdfVoxelMap;
+use crate::{SdfArrayCompression, SdfVoxelMap};
 
 use bevy::{prelude::*, tasks::ComputeTaskPool};
-use building_blocks::storage::{Compression, FastArrayCompression, FromBytesCompression, Lz4};
+use building_blocks::storage::{Compression, FromBytesCompression, Lz4};
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Deserialize)]
@@ -49,7 +49,7 @@ pub fn chunk_compressor_system(
         }
     }
 
-    let compression = FastArrayCompression::from_bytes_compression(Lz4 { level: 10 });
+    let compression = SdfArrayCompression::from_bytes_compression(Lz4 { level: 10 });
     let compressed_chunks = pool.scope(|s| {
         for (key, chunk) in chunks_to_compress.into_iter() {
             s.spawn(async move { (key, compression.compress(&chunk)) });

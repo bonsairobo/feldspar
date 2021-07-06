@@ -3,7 +3,7 @@ use crate::{
     EMPTY_SIGNED_DISTANCE,
 };
 
-use building_blocks::prelude::*;
+use building_blocks::{prelude::*, storage::FastArrayCompressionNx2};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
@@ -137,6 +137,8 @@ pub fn ambient_sdf_array(extent: Extent3i) -> SdfArray {
 }
 
 pub type SdfArray = Array3x2<VoxelType, Sd8>;
+
+pub type SdfArrayCompression = FastArrayCompressionNx2<[i32; 3], Lz4, VoxelType, Sd8>;
 
 pub type SdfChunkMapBuilder = ChunkMapBuilder3x2<VoxelType, Sd8>;
 pub type SdfChunkHashMap = ChunkHashMap3x2<VoxelType, Sd8>;

@@ -1,22 +1,22 @@
-use crate::{ChangeBuffer, SdfArray, VoxelType};
+use crate::{ChangeBuffer, SdfArray, SdfArrayCompression};
 
 use building_blocks::{
     core::prelude::*,
-    storage::{sled, ChunkDb3, ChunkKey3, FastArrayCompressionNx2, FromBytesCompression, Lz4, Sd8},
+    storage::{sled, ChunkDb3, ChunkKey3, FromBytesCompression, Lz4},
 };
 
 pub struct VoxelWorldDb {
     chunks: SdfChunkDb,
 }
 
-pub type SdfChunkDb = ChunkDb3<FastArrayCompressionNx2<[i32; 3], Lz4, VoxelType, Sd8>>;
+pub type SdfChunkDb = ChunkDb3<SdfArrayCompression>;
 
 impl VoxelWorldDb {
     pub fn new(tree: sled::Tree) -> Self {
         Self {
             chunks: ChunkDb3::new(
                 tree,
-                FastArrayCompressionNx2::from_bytes_compression(Lz4 { level: 10 }),
+                SdfArrayCompression::from_bytes_compression(Lz4 { level: 10 }),
             ),
         }
     }
