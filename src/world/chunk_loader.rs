@@ -1,4 +1,4 @@
-use crate::{world::witness_superchunk_extent, ChangeBuffer, Config, VoxelWorldDb, Witness};
+use crate::{world::witness_superchunk_extent, ChangeBuffer, Config, VoxelDb, Witness};
 
 use bevy::prelude::*;
 use bevy::tasks::ComputeTaskPool;
@@ -8,7 +8,7 @@ use std::iter::FromIterator;
 
 pub fn chunk_loader_system(
     config: Res<Config>,
-    db: Res<VoxelWorldDb>,
+    db: Res<VoxelDb>,
     mut change_buffer: ResMut<ChangeBuffer>,
     mut witnesses: Query<(&mut Witness, &Transform)>,
     pool: Res<ComputeTaskPool>,

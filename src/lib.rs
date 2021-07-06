@@ -2,7 +2,6 @@
 
 mod bvt;
 mod config;
-mod database;
 mod renderer;
 mod thread_local_resource;
 mod voxel_data;
@@ -14,7 +13,6 @@ use thread_local_resource::*;
 
 pub use bvt::VoxelBvt;
 pub use config::Config;
-pub use database::VoxelWorldDb;
 pub use renderer::VoxelRenderAssets;
 pub use voxel_data::*;
 pub use world::{VoxelWorldPlugin, Witness};

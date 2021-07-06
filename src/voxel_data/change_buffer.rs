@@ -1,6 +1,7 @@
 use crate::{
-    database::LoadedSuperChunk, empty_sdf_chunk_hash_map, CompressibleSdfChunkMapReader, SdfArray,
-    SdfChunkHashMap, SdfVoxelMap, VoxelType, EMPTY_SDF_VOXEL,
+    empty_sdf_chunk_hash_map, voxel_data::database::LoadedSuperChunk,
+    CompressibleSdfChunkMapReader, SdfArray, SdfChunkHashMap, SdfVoxelMap, VoxelType,
+    EMPTY_SDF_VOXEL,
 };
 
 use bevy::prelude::*;
