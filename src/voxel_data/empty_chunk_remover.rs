@@ -1,7 +1,7 @@
 use crate::SdfVoxelMap;
 
 use bevy::ecs::prelude::*;
-use building_blocks::storage::ChunkKey3;
+use building_blocks::prelude::ChunkKey3;
 
 /// The resource that tracks which chunks recently became empty and should be removed. This enables multiple methods of
 /// detecting empty chunks. Chunks will be removed at the end of the frame in which they are marked as empty, but removal

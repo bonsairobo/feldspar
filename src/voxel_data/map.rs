@@ -3,7 +3,7 @@ use crate::{
     EMPTY_SIGNED_DISTANCE,
 };
 
-use building_blocks::{prelude::*, storage::FastArrayCompressionNx2};
+use building_blocks::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]

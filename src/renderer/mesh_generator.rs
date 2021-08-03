@@ -5,9 +5,12 @@ use crate::{
 };
 
 use building_blocks::{
-    mesh::{surface_nets::*, PosNormMesh},
-    prelude::*,
-    storage::Local,
+    mesh::*,
+    prelude::{
+        Array3x2, ChunkKey3, IndexedArray, IsEmpty, Local, Point3i, Sd8, Stride, TransformMap,
+    },
+    storage::access_traits::*,
+    storage::SmallKeyHashMap,
 };
 
 use bevy::{
@@ -107,7 +110,7 @@ fn generate_mesh_for_each_chunk(
 ) -> Vec<(ChunkKey3, Option<(PosNormMesh, Vec<[u8; 4]>)>)> {
     pool.scope(|s| {
         for chunk_min in dirty_chunks.dirty_chunk_mins().iter().cloned() {
-            let chunk_key = ChunkKey::new(0, chunk_min);
+            let chunk_key = ChunkKey3::new(0, chunk_min);
             s.spawn(async move {
                 let cache_tls = local_caches.get();
                 let reader = voxel_map.reader(&cache_tls);

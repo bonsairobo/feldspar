@@ -1,6 +1,6 @@
 use crate::{DirtyChunks, EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache};
 
-use building_blocks::{prelude::*, search::OctreeDbvt, storage::OctreeSet};
+use building_blocks::{prelude::*, search::OctreeDbvt};
 
 use bevy::{
     prelude::*,

@@ -1,7 +1,7 @@
 use crate::{SdfArrayCompression, SdfVoxelMap};
 
 use bevy::{prelude::*, tasks::ComputeTaskPool};
-use building_blocks::storage::{Compression, FromBytesCompression, Lz4};
+use building_blocks::prelude::{Compression, FromBytesCompression, Lz4};
 use serde::Deserialize;
 
 #[derive(Clone, Copy, Deserialize)]

@@ -2,7 +2,10 @@ use crate::{ChangeBuffer, SdfArray, SdfArrayCompression};
 
 use building_blocks::{
     core::prelude::*,
-    storage::{sled, ChunkDb3, ChunkKey3, FromBytesCompression, Lz4},
+    storage::{
+        database::sled,
+        prelude::{ChunkDb3, ChunkKey3, FromBytesCompression, Lz4},
+    },
 };
 
 /// The database storing all voxel chunks.

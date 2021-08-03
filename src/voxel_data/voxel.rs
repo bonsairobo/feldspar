@@ -1,6 +1,6 @@
 use crate::{MaterialLayer, MaterialVoxel};
 
-use building_blocks::storage::{IsEmpty, Sd8};
+use building_blocks::storage::{prelude::Sd8, IsEmpty};
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
 
