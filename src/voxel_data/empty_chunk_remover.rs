@@ -3,9 +3,11 @@ use crate::SdfVoxelMap;
 use bevy::ecs::prelude::*;
 use building_blocks::prelude::ChunkKey3;
 
-/// The resource that tracks which chunks recently became empty and should be removed. This enables multiple methods of
-/// detecting empty chunks. Chunks will be removed at the end of the frame in which they are marked as empty, but removal
-/// happens before the edit buffer is merged into the `SdfVoxelMap`, so writes from the same frame will not be removed.
+/// The resource that tracks which chunks recently became empty and should be removed.
+///
+/// This enables multiple methods of detecting empty chunks. Chunks will be removed at the end of the frame in which they are
+/// marked as empty, but removal happens before the edit buffer is merged into the `SdfVoxelMap`, so writes from the same frame
+/// will not be removed.
 #[derive(Default)]
 pub struct EmptyChunks {
     chunks_to_remove: Vec<ChunkKey3>,
