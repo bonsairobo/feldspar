@@ -34,4 +34,4 @@ branch = "main"
 # rev = "a2d27db"
 # path = "../building-blocks"
 default-features = false
-features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled"]
+features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled", "sled-snapshots"]

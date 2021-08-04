@@ -4,33 +4,24 @@ use building_blocks::{
     core::prelude::*,
     storage::{
         database::sled,
-        prelude::{ChunkDb3, ChunkKey3, FromBytesCompression, Lz4},
+        prelude::{ChunkKey3, VersionedChunkDb3},
     },
 };
 
 /// The database storing all voxel chunks.
-///
-/// This manages two `ChunkDb`s: one main copy and one for edits. Edits can be made out-of-place and later merged into the main
-/// tree.
 pub struct VoxelDb {
-    main: SdfChunkDb,
-    edits: SdfChunkDb,
+    chunks: SdfChunkDb,
 }
 
-pub type SdfChunkDb = ChunkDb3<SdfArrayCompression>;
+pub type SdfChunkDb = VersionedChunkDb3<SdfArrayCompression>;
 
 impl VoxelDb {
-    pub fn new(main_tree: sled::Tree, edits_tree: sled::Tree) -> Self {
-        let compression = SdfArrayCompression::from_bytes_compression(Lz4 { level: 10 });
-
-        Self {
-            main: SdfChunkDb::new(main_tree, compression),
-            edits: SdfChunkDb::new(edits_tree, compression),
-        }
+    pub fn new(chunks: SdfChunkDb) -> Self {
+        Self { chunks }
     }
 
     pub fn chunks(&self) -> &SdfChunkDb {
-        &self.main
+        &self.chunks
     }
 
     /// Loads all chunks present in the given superchunk `octant` into the `ChangeBuffer` and marks them and their neighbors
@@ -41,7 +32,7 @@ impl VoxelDb {
         change_buffer: &mut ChangeBuffer,
     ) -> sled::Result<()> {
         let mut chunks = Vec::new();
-        self.main
+        self.chunks
             .read_chunks_in_orthant(0, octant, |key, chunk| {
                 chunks.push((key, chunk));
             })
