@@ -1,5 +1,5 @@
 use super::change_buffer::ChangeBuffer;
-use crate::{SdfArray, SdfVoxelMap, ThreadLocalVoxelCache, VoxelType};
+use crate::prelude::{SdfArray, SdfVoxelMap, ThreadLocalVoxelCache, VoxelType};
 use bevy::ecs::{prelude::*, system::SystemParam};
 use building_blocks::prelude::*;
 

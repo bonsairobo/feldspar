@@ -1,6 +1,9 @@
 use super::chunk_loader_system;
 
-use crate::{BevyState, BvtPlugin, Config, VoxelDataPlugin, VoxelRenderPlugin};
+use crate::{
+    prelude::{BvtPlugin, Config, VoxelDataPlugin, VoxelRenderPlugin},
+    BevyState,
+};
 
 use bevy::{app::prelude::*, ecs::prelude::*};
 

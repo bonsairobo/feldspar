@@ -1,4 +1,4 @@
-use crate::{
+use crate::prelude::{
     ThreadLocalResource, ThreadLocalResourceHandle, VoxelMaterial, VoxelType, VoxelTypeInfo,
     EMPTY_SIGNED_DISTANCE,
 };

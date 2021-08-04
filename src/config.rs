@@ -1,4 +1,4 @@
-use crate::{ChunkCacheConfig, MapConfig, RenderConfig};
+use crate::prelude::{ChunkCacheConfig, MapConfig, RenderConfig};
 
 use serde::Deserialize;
 

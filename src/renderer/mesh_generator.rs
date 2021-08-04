@@ -1,7 +1,9 @@
 use crate::{
-    ambient_sdf_array,
-    renderer::{ArrayMaterial, MaterialLayer, MaterialVoxel, SmoothVoxelPbrBundle},
-    BevyState, DirtyChunks, SdfVoxelMap, ThreadLocalResource, ThreadLocalVoxelCache, VoxelType,
+    prelude::{
+        ambient_sdf_array, ArrayMaterial, DirtyChunks, MaterialLayer, MaterialVoxel, SdfVoxelMap,
+        SmoothVoxelPbrBundle, ThreadLocalResource, ThreadLocalVoxelCache, VoxelType,
+    },
+    BevyState,
 };
 
 use building_blocks::{

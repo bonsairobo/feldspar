@@ -1,23 +1,25 @@
 //! The Feldspar voxel plugin for Bevy Engine.
 
-mod bvt;
 mod config;
-mod renderer;
-mod thread_local_resource;
-mod voxel_data;
-mod world;
 
-use bvt::*;
-use renderer::*;
-use thread_local_resource::*;
+pub mod bvt;
+pub mod renderer;
+pub mod thread_local_resource;
+pub mod voxel_data;
+pub mod world;
 
-pub use bvt::VoxelBvt;
 pub use config::Config;
-pub use renderer::VoxelRenderAssets;
-pub use voxel_data::*;
-pub use world::{VoxelWorldPlugin, Witness};
 
 pub use building_blocks as bb;
+
+pub mod prelude {
+    pub use super::bvt::*;
+    pub use super::config::*;
+    pub use super::renderer::*;
+    pub use super::thread_local_resource::*;
+    pub use super::voxel_data::*;
+    pub use super::world::*;
+}
 
 use bevy::ecs::component::Component;
 use std::fmt::Debug;

@@ -1,4 +1,4 @@
-use crate::{ChangeBuffer, SdfArray, SdfArrayCompression};
+use crate::prelude::{ChangeBuffer, SdfArray, SdfArrayCompression};
 
 use building_blocks::{
     core::prelude::*,

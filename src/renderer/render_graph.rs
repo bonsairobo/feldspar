@@ -2,7 +2,7 @@ mod voxel_pipeline;
 
 pub use voxel_pipeline::*;
 
-use crate::ArrayMaterial;
+use crate::prelude::ArrayMaterial;
 
 use bevy::ecs::world::World;
 

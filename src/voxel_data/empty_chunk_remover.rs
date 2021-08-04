@@ -1,4 +1,4 @@
-use crate::SdfVoxelMap;
+use crate::prelude::SdfVoxelMap;
 
 use bevy::ecs::prelude::*;
 use building_blocks::prelude::ChunkKey3;

@@ -1,6 +1,6 @@
 use super::ThreadLocalVoxelCache;
 
-use crate::SdfVoxelMap;
+use crate::prelude::SdfVoxelMap;
 
 use bevy::prelude::*;
 

@@ -3,7 +3,7 @@ use bevy::reflect::TypeUuid;
 use bevy::render::{color::Color, renderer::RenderResources, shader::ShaderDefs, texture::Texture};
 
 /// A material with "standard" properties used in PBR lighting
-/// Standard property values with pictures here https://google.github.io/filament/Material%20Properties.pdf
+/// Standard property values with pictures here <https://google.github.io/filament/Material%20Properties.pdf>
 #[derive(Debug, RenderResources, ShaderDefs, TypeUuid)]
 #[uuid = "42b444f8-9a77-4e53-9075-863f43f66b9e"]
 pub struct ArrayMaterial {

@@ -1,4 +1,4 @@
-use crate::{ArrayMaterial, MeshMaterial};
+use crate::prelude::{ArrayMaterial, MeshMaterial};
 
 use bevy::{
     asset::prelude::*,

@@ -1,4 +1,4 @@
-use crate::{SdfArrayCompression, SdfVoxelMap};
+use crate::prelude::{SdfArrayCompression, SdfVoxelMap};
 
 use bevy::{prelude::*, tasks::ComputeTaskPool};
 use building_blocks::prelude::{Compression, FromBytesCompression, Lz4};

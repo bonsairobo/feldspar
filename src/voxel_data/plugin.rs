@@ -5,7 +5,7 @@ use super::{
     empty_chunk_remover::empty_chunk_remover_system,
     EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache,
 };
-use crate::MapConfig;
+use crate::prelude::MapConfig;
 
 use bevy::{app::prelude::*, ecs::prelude::*};
 

@@ -1,4 +1,4 @@
-use crate::{world::witness_superchunk_extent, ChangeBuffer, Config, VoxelDb, Witness};
+use crate::prelude::{witness_superchunk_extent, ChangeBuffer, Config, VoxelDb, Witness};
 
 use bevy::prelude::*;
 use bevy::tasks::ComputeTaskPool;

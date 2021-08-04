@@ -1,5 +1,5 @@
 use super::render_graph::PBR_PIPELINE_HANDLE;
-use crate::ArrayMaterial;
+use crate::prelude::ArrayMaterial;
 
 use bevy::asset::Handle;
 use bevy::ecs::bundle::Bundle;

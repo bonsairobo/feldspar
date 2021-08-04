@@ -1,4 +1,4 @@
-use crate::{DirtyChunks, EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache};
+use crate::prelude::{DirtyChunks, EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache};
 
 use building_blocks::{prelude::*, search::OctreeDbvt};
 

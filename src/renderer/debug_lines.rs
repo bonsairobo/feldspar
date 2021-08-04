@@ -1,4 +1,4 @@
-use crate::{world::witness_superchunk_extent, Config, Witness};
+use crate::prelude::{witness_superchunk_extent, Config, Witness};
 
 use building_blocks::core::{prelude::*, EDGES_3};
 
