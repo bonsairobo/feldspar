@@ -47,6 +47,12 @@ pub fn chunk_loader_system(
         let new_superchunks = &superchunks - &prev_superchunks;
         let old_superchunks = &prev_superchunks - &superchunks;
 
+        log::debug!(
+            "Chunk loader: removing {}, inserting {}",
+            old_superchunks.len(),
+            new_superchunks.len()
+        );
+
         for new_superchunk in new_superchunks.into_iter() {
             let octant = Octant::new(config.map.superchunk_exponent as i32, new_superchunk);
             pool.scope(|s| {
