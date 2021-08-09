@@ -146,6 +146,7 @@ fn generate_mesh_for_each_chunk(
                     &padded_sdf_chunk,
                     &padded_chunk_extent,
                     1.0,
+                    true,
                     &mut *surface_nets_buffer,
                 );
 
