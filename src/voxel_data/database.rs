@@ -1,4 +1,4 @@
-use crate::prelude::{ChangeBuffer, SdfArray, SdfArrayCompression};
+use crate::prelude::{FrameMapChanges, SdfArray, SdfArrayCompression};
 
 use building_blocks::{
     core::prelude::*,
@@ -24,12 +24,12 @@ impl VoxelDb {
         &self.chunks
     }
 
-    /// Loads all chunks present in the given superchunk `octant` into the `ChangeBuffer` and marks them and their neighbors
+    /// Loads all chunks present in the given superchunk `octant` into the `FrameMapChanges` and marks them and their neighbors
     /// dirty. These chunks will be processed alongside the edits to keep the data pipeline more consistent.
     pub async fn load_superchunk_into_change_buffer<'a>(
         &self,
         octant: Octant,
-        change_buffer: &mut ChangeBuffer,
+        change_buffer: &mut FrameMapChanges,
     ) -> sled::Result<()> {
         let mut chunks = Vec::new();
         self.chunks

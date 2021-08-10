@@ -13,22 +13,22 @@ use building_blocks::{prelude::*, storage::SmallKeyHashSet};
 ///
 /// For the sake of pipelining, all voxels loaded or edited are first written out of place here. They will later be merged into
 /// the world map.
-pub struct ChangeBuffer {
+pub struct FrameMapChanges {
     edited_chunks: SdfChunkHashMap,
     edited_extents: Vec<Extent3i>,
     /// The superchunks that have been loaded from the database this frame.
     loaded_superchunks: Vec<LoadedSuperChunk>,
-    /// The superchunks that have been unloaded from the world map this frame.
-    unloaded_superchunks: Vec<Octant>,
+    /// The superchunks that have been evicted from the world map this frame.
+    superchunks_to_evict: Vec<Octant>,
 }
 
-impl ChangeBuffer {
+impl FrameMapChanges {
     pub fn new(chunk_shape: Point3i) -> Self {
         Self {
             edited_chunks: empty_sdf_chunk_hash_map(chunk_shape),
             edited_extents: Vec::new(),
             loaded_superchunks: Vec::new(),
-            unloaded_superchunks: Vec::new(),
+            superchunks_to_evict: Vec::new(),
         }
     }
 
@@ -36,8 +36,8 @@ impl ChangeBuffer {
         !(self.edited_chunks.storage().is_empty() && self.loaded_superchunks.is_empty())
     }
 
-    pub fn unload_superchunk(&mut self, octant: Octant) {
-        self.unloaded_superchunks.push(octant);
+    pub fn mark_superchunk_for_eviction(&mut self, octant: Octant) {
+        self.superchunks_to_evict.push(octant);
     }
 
     pub fn load_superchunk(&mut self, superchunk: LoadedSuperChunk) {
@@ -99,11 +99,11 @@ impl ChangeBuffer {
 
     /// Write all of the new chunks into `dst_map`. Returns the dirty chunks.
     fn merge_changes(self, dst_map: &mut SdfVoxelMap) -> DirtyChunks {
-        let ChangeBuffer {
+        let FrameMapChanges {
             edited_chunks,
             mut edited_extents,
             loaded_superchunks,
-            unloaded_superchunks,
+            superchunks_to_evict,
         } = self;
 
         let SdfVoxelMap {
@@ -133,8 +133,8 @@ impl ChangeBuffer {
             chunk_index.insert_superchunk(octant.minimum(), key_iter);
         }
 
-        for octant in unloaded_superchunks.into_iter() {
-            dst_map.unload_superchunk(octant, |chunk_key| {
+        for octant in superchunks_to_evict.into_iter() {
+            dst_map.mark_superchunk_for_eviction(octant, |chunk_key| {
                 changed_chunk_mins.push(chunk_key.minimum);
                 edited_extents.push(indexer.extent_for_chunk_with_min(chunk_key.minimum));
             });
@@ -179,16 +179,16 @@ impl DirtyChunks {
     }
 }
 
-/// Merges changes from the `ChangeBuffer` into the `SdfVoxelMap`. By setting the `DirtyChunks` resource, the chunk
+/// Merges changes from the `FrameMapChanges` into the `SdfVoxelMap`. By setting the `DirtyChunks` resource, the chunk
 /// post-processing systems will be notified to process dirty chunks on the next frame.
 pub fn double_buffering_system(
     mut voxel_map: ResMut<SdfVoxelMap>,
-    mut change_buffer: ResMut<ChangeBuffer>,
+    mut change_buffer: ResMut<FrameMapChanges>,
     mut dirty_chunks: ResMut<DirtyChunks>,
 ) {
     let change_buffer = std::mem::replace(
         &mut *change_buffer,
-        ChangeBuffer::new(voxel_map.voxels.chunk_shape()),
+        FrameMapChanges::new(voxel_map.voxels.chunk_shape()),
     );
     *dirty_chunks = change_buffer.merge_changes(&mut voxel_map);
 }

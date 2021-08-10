@@ -1,8 +1,8 @@
 use super::{
-    change_buffer::{double_buffering_system, ChangeBuffer, DirtyChunks},
     chunk_cache_flusher::chunk_cache_flusher_system,
     chunk_compressor::chunk_compressor_system,
     empty_chunk_remover::empty_chunk_remover_system,
+    map_changes::{double_buffering_system, DirtyChunks, FrameMapChanges},
     EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache,
 };
 use crate::prelude::MapConfig;
@@ -43,7 +43,7 @@ impl Plugin for VoxelDataPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.insert_resource(self.cache_config)
             .insert_resource(SdfVoxelMap::new_empty(self.map_config))
-            .insert_resource(ChangeBuffer::new(self.map_config.chunk_shape()))
+            .insert_resource(FrameMapChanges::new(self.map_config.chunk_shape()))
             .insert_resource(DirtyChunks::default())
             .insert_resource(EmptyChunks::default())
             // Each thread gets its own local chunk cache. The local caches are flushed into the global cache in the

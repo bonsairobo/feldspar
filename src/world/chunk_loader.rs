@@ -1,4 +1,4 @@
-use crate::prelude::{witness_superchunk_extent, ChangeBuffer, Config, VoxelDb, Witness};
+use crate::prelude::{witness_superchunk_extent, Config, FrameMapChanges, VoxelDb, Witness};
 
 use bevy::prelude::*;
 use bevy::tasks::ComputeTaskPool;
@@ -9,7 +9,7 @@ use std::iter::FromIterator;
 pub fn chunk_loader_system(
     config: Res<Config>,
     db: Res<VoxelDb>,
-    mut change_buffer: ResMut<ChangeBuffer>,
+    mut change_buffer: ResMut<FrameMapChanges>,
     mut witnesses: Query<(&mut Witness, &Transform)>,
     pool: Res<ComputeTaskPool>,
 ) {
@@ -62,7 +62,7 @@ pub fn chunk_loader_system(
 
         for old_superchunk in old_superchunks.into_iter() {
             let octant = Octant::new(config.map.superchunk_exponent as i32, old_superchunk);
-            change_buffer.unload_superchunk(octant);
+            change_buffer.mark_superchunk_for_eviction(octant);
         }
     }
 }

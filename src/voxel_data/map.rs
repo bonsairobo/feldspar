@@ -89,7 +89,11 @@ impl SdfVoxelMap {
         self.voxels.reader(local_cache)
     }
 
-    pub fn unload_superchunk(&mut self, octant: Octant, mut chunk_key_rx: impl FnMut(ChunkKey3)) {
+    pub fn mark_superchunk_for_eviction(
+        &mut self,
+        octant: Octant,
+        mut chunk_key_rx: impl FnMut(ChunkKey3),
+    ) {
         if let Some(octree) = self.chunk_index.pop_superchunk(octant.minimum()) {
             octree.visit_all_points(|chunk_p| {
                 let chunk_min = chunk_p << self.chunk_index.chunk_exponent();
