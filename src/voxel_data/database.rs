@@ -4,7 +4,7 @@ use building_blocks::{
     core::prelude::*,
     storage::{
         database::sled,
-        prelude::{ChunkKey3, VersionedChunkDb3},
+        prelude::{ChunkKey3, ReadableChunkDb, VersionedChunkDb3},
     },
 };
 
@@ -31,12 +31,13 @@ impl VoxelDb {
         octant: Octant,
         change_buffer: &mut FrameMapChanges,
     ) -> sled::Result<()> {
+        let read_result = self.chunks.read_chunks_in_orthant(0, octant)?;
         let mut chunks = Vec::new();
-        self.chunks
-            .read_chunks_in_orthant(0, octant, |key, chunk| {
+        read_result
+            .decompress(|key, chunk| {
                 chunks.push((key, chunk));
             })
-            .await?;
+            .await;
 
         if !chunks.is_empty() {
             change_buffer.load_superchunk(LoadedSuperChunk { octant, chunks });

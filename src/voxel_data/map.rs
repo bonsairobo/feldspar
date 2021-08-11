@@ -1,7 +1,4 @@
-use crate::prelude::{
-    ThreadLocalResource, ThreadLocalResourceHandle, VoxelMaterial, VoxelType, VoxelTypeInfo,
-    EMPTY_SIGNED_DISTANCE,
-};
+use crate::prelude::{VoxelMaterial, VoxelType, VoxelTypeInfo, EMPTY_SIGNED_DISTANCE};
 
 use building_blocks::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -80,20 +77,7 @@ impl SdfVoxelMap {
         move |(v_type, _dist): (VoxelType, Sd8)| self.palette.get_voxel_type_info(v_type)
     }
 
-    pub fn reader<'a>(
-        &'a self,
-        handle: &'a ThreadLocalResourceHandle<SdfChunkCache>,
-    ) -> CompressibleSdfChunkMapReader {
-        let local_cache = handle.get_or_create_with(SdfChunkCache::new);
-
-        self.voxels.reader(local_cache)
-    }
-
-    pub fn mark_superchunk_for_eviction(
-        &mut self,
-        octant: Octant,
-        mut chunk_key_rx: impl FnMut(ChunkKey3),
-    ) {
+    pub fn evict_superchunk(&mut self, octant: Octant, mut chunk_key_rx: impl FnMut(ChunkKey3)) {
         if let Some(octree) = self.chunk_index.pop_superchunk(octant.minimum()) {
             octree.visit_all_points(|chunk_p| {
                 let chunk_min = chunk_p << self.chunk_index.chunk_exponent();
@@ -147,8 +131,4 @@ pub type SdfArrayCompression = FastArrayCompressionNx2<[i32; 3], Lz4, VoxelType,
 pub type SdfChunkMapBuilder = ChunkMapBuilder3x2<VoxelType, Sd8>;
 pub type SdfChunkHashMap = ChunkHashMap3x2<VoxelType, Sd8>;
 
-pub type SdfChunkCache = LocalChunkCache3<SdfArray>;
-pub type ThreadLocalVoxelCache = ThreadLocalResource<SdfChunkCache>;
-
 pub type CompressibleSdfChunkMap = CompressibleChunkMap3x2<Lz4, VoxelType, Sd8>;
-pub type CompressibleSdfChunkMapReader<'a> = CompressibleChunkMapReader3x2<'a, Lz4, VoxelType, Sd8>;

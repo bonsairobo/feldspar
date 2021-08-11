@@ -1,5 +1,5 @@
 use super::map_changes::FrameMapChanges;
-use crate::prelude::{SdfArray, SdfVoxelMap, ThreadLocalVoxelCache, VoxelType};
+use crate::prelude::{SdfArray, SdfVoxelMap, VoxelType};
 use bevy::ecs::{prelude::*, system::SystemParam};
 use building_blocks::prelude::*;
 
@@ -8,7 +8,6 @@ use building_blocks::prelude::*;
 #[derive(SystemParam)]
 pub struct VoxelEditor<'a> {
     pub map: Res<'a, SdfVoxelMap>,
-    pub local_cache: Res<'a, ThreadLocalVoxelCache>,
     frame_changes: ResMut<'a, FrameMapChanges>,
 }
 
@@ -27,10 +26,8 @@ impl<'a> VoxelEditor<'a> {
         extent: Extent3i,
         edit_func: impl FnMut(Point3i, (&mut VoxelType, &mut Sd8)),
     ) {
-        let tls = self.local_cache.get();
-        let reader = self.map.reader(&tls);
         self.frame_changes
-            .edit_voxels_out_of_place(&reader, extent, edit_func);
+            .edit_voxels_out_of_place(&self.map.voxels, extent, edit_func);
     }
 
     pub fn write_chunk_and_touch_neighbors(&mut self, chunk_min: Point3i, chunk: SdfArray) {

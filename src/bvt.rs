@@ -1,4 +1,4 @@
-use crate::prelude::{DirtyChunks, EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache};
+use crate::prelude::{DirtyChunks, EmptyChunks, SdfVoxelMap};
 
 use building_blocks::{prelude::*, search::OctreeDbvt};
 
@@ -25,13 +25,11 @@ pub type VoxelBvt = OctreeDbvt<Point3i>;
 fn octree_generator_system(
     pool: Res<ComputeTaskPool>,
     voxel_map: Res<SdfVoxelMap>,
-    local_caches: Res<ThreadLocalVoxelCache>,
     dirty_chunks: Res<DirtyChunks>,
     mut voxel_bvt: ResMut<VoxelBvt>,
     mut empty_chunks: ResMut<EmptyChunks>,
 ) {
-    let new_chunk_octrees =
-        generate_octree_for_each_chunk(&*dirty_chunks, &*voxel_map, &*local_caches, &*pool);
+    let new_chunk_octrees = generate_octree_for_each_chunk(&*dirty_chunks, &*voxel_map, &*pool);
 
     let new_empty_chunks: Vec<Point3i> = new_chunk_octrees
         .iter()
@@ -87,20 +85,19 @@ fn octree_generator_system(
 fn generate_octree_for_each_chunk(
     dirty_chunks: &DirtyChunks,
     map: &SdfVoxelMap,
-    local_caches: &ThreadLocalVoxelCache,
     pool: &TaskPool,
 ) -> Vec<(Point3i, Option<OctreeSet>)> {
     pool.scope(|s| {
         for &chunk_min in dirty_chunks.changed_chunk_mins().iter() {
             s.spawn(async move {
-                let cache_tls = local_caches.get();
-                let reader = map.reader(&cache_tls);
+                let octree = map
+                    .voxels
+                    .get_chunk(ChunkKey::new(0, chunk_min))
+                    .map(|chunk| {
+                        let transform_chunk = TransformMap::new(chunk, map.voxel_info_transform());
 
-                let octree = reader.get_chunk(ChunkKey::new(0, chunk_min)).map(|chunk| {
-                    let transform_chunk = TransformMap::new(chunk, map.voxel_info_transform());
-
-                    OctreeSet::from_array3(&transform_chunk, *chunk.extent())
-                });
+                        OctreeSet::from_array3(&transform_chunk, *chunk.extent())
+                    });
 
                 (chunk_min, octree)
             })

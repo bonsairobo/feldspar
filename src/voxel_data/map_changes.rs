@@ -1,7 +1,7 @@
 use crate::{
     prelude::{
-        empty_sdf_chunk_hash_map, CompressibleSdfChunkMapReader, SdfArray, SdfChunkHashMap,
-        SdfVoxelMap, VoxelType, EMPTY_SDF_VOXEL,
+        empty_sdf_chunk_hash_map, CompressibleSdfChunkMap, SdfArray, SdfChunkHashMap, SdfVoxelMap,
+        VoxelType, EMPTY_SDF_VOXEL,
     },
     voxel_data::database::LoadedSuperChunk,
 };
@@ -51,28 +51,26 @@ impl FrameMapChanges {
     /// dependencies between adjacent chunks that must be considered during post-processing (e.g. during mesh generation).
     pub fn edit_voxels_out_of_place(
         &mut self,
-        reader: &CompressibleSdfChunkMapReader,
+        map: &CompressibleSdfChunkMap,
         extent: Extent3i,
         edit_func: impl FnMut(Point3i, (&mut VoxelType, &mut Sd8)),
     ) {
-        debug_assert!(reader.chunk_shape().eq(&self.edited_chunks.chunk_shape()));
+        debug_assert!(map.chunk_shape().eq(&self.edited_chunks.chunk_shape()));
 
         // Copy any of the overlapping chunks that don't already exist in the backbuffer, i.e. those chunks which haven't been
         // modified yet.
-        for chunk_min in reader.indexer.chunk_mins_for_extent(&extent) {
+        for chunk_min in map.indexer.chunk_mins_for_extent(&extent) {
             let chunk_key = ChunkKey::new(0, chunk_min);
             self.edited_chunks
                 .get_mut_chunk_or_insert_with(chunk_key, || {
-                    reader
-                        .storage()
-                        .storage
+                    map.storage()
                         // We don't cache the chunk yet, because we're just going to modify this copy and insert back into the
                         // map later.
                         .copy_without_caching(chunk_key)
                         .map(|c| c.into_decompressed())
                         .unwrap_or_else(|| {
                             SdfArray::fill(
-                                reader.indexer.extent_for_chunk_with_min(chunk_min),
+                                map.indexer.extent_for_chunk_with_min(chunk_min),
                                 EMPTY_SDF_VOXEL,
                             )
                         })
@@ -134,7 +132,7 @@ impl FrameMapChanges {
         }
 
         for octant in superchunks_to_evict.into_iter() {
-            dst_map.mark_superchunk_for_eviction(octant, |chunk_key| {
+            dst_map.evict_superchunk(octant, |chunk_key| {
                 changed_chunk_mins.push(chunk_key.minimum);
                 edited_extents.push(indexer.extent_for_chunk_with_min(chunk_key.minimum));
             });

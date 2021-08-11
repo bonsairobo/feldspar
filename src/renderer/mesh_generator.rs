@@ -1,7 +1,7 @@
 use crate::{
     prelude::{
         ambient_sdf_array, ArrayMaterial, DirtyChunks, MaterialLayer, MaterialVoxel, SdfVoxelMap,
-        SmoothVoxelPbrBundle, ThreadLocalResource, ThreadLocalVoxelCache, VoxelType,
+        SmoothVoxelPbrBundle, ThreadLocalResource, VoxelType,
     },
     BevyState,
 };
@@ -66,19 +66,13 @@ fn mesh_generator_system(
     pool: Res<ComputeTaskPool>,
     voxel_map: Res<SdfVoxelMap>,
     dirty_chunks: Res<DirtyChunks>,
-    local_caches: Res<ThreadLocalVoxelCache>,
     local_mesh_buffers: ecs::system::Local<ThreadLocalMeshBuffers>,
     mesh_material: Res<MeshMaterial>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut chunk_meshes: ResMut<ChunkMeshes>,
 ) {
-    let new_chunk_meshes = generate_mesh_for_each_chunk(
-        &*voxel_map,
-        &*dirty_chunks,
-        &*local_caches,
-        &*local_mesh_buffers,
-        &*pool,
-    );
+    let new_chunk_meshes =
+        generate_mesh_for_each_chunk(&*voxel_map, &*dirty_chunks, &*local_mesh_buffers, &*pool);
 
     for (chunk_key, item) in new_chunk_meshes.into_iter() {
         let old_mesh = if let Some((mesh, material_counts)) = item {
@@ -106,7 +100,6 @@ fn mesh_generator_system(
 fn generate_mesh_for_each_chunk(
     voxel_map: &SdfVoxelMap,
     dirty_chunks: &DirtyChunks,
-    local_caches: &ThreadLocalVoxelCache,
     local_mesh_buffers: &ThreadLocalMeshBuffers,
     pool: &ComputeTaskPool,
 ) -> Vec<(ChunkKey3, Option<(PosNormMesh, Vec<[u8; 4]>)>)> {
@@ -114,11 +107,11 @@ fn generate_mesh_for_each_chunk(
         for chunk_min in dirty_chunks.dirty_chunk_mins().iter().cloned() {
             let chunk_key = ChunkKey3::new(0, chunk_min);
             s.spawn(async move {
-                let cache_tls = local_caches.get();
-                let reader = voxel_map.reader(&cache_tls);
-
                 let padded_chunk_extent = padded_surface_nets_chunk_extent(
-                    &reader.indexer.extent_for_chunk_with_min(chunk_min),
+                    &voxel_map
+                        .voxels
+                        .indexer
+                        .extent_for_chunk_with_min(chunk_min),
                 );
 
                 let mesh_tls = local_mesh_buffers.get();
@@ -138,7 +131,11 @@ fn generate_mesh_for_each_chunk(
 
                 padded_chunk.set_minimum(padded_chunk_extent.minimum);
 
-                copy_extent(&padded_chunk_extent, &reader.lod_view(0), padded_chunk);
+                copy_extent(
+                    &padded_chunk_extent,
+                    &voxel_map.voxels.lod_view(0),
+                    padded_chunk,
+                );
 
                 let padded_sdf_chunk = TransformMap::new(padded_chunk, |(_type, dist)| dist);
 

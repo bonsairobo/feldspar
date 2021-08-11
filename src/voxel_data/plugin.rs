@@ -3,7 +3,7 @@ use super::{
     chunk_compressor::chunk_compressor_system,
     empty_chunk_remover::empty_chunk_remover_system,
     map_changes::{double_buffering_system, DirtyChunks, FrameMapChanges},
-    EmptyChunks, SdfVoxelMap, ThreadLocalVoxelCache,
+    EmptyChunks, SdfVoxelMap,
 };
 use crate::prelude::MapConfig;
 
@@ -46,9 +46,6 @@ impl Plugin for VoxelDataPlugin {
             .insert_resource(FrameMapChanges::new(self.map_config.chunk_shape()))
             .insert_resource(DirtyChunks::default())
             .insert_resource(EmptyChunks::default())
-            // Each thread gets its own local chunk cache. The local caches are flushed into the global cache in the
-            // chunk_cache_flusher_system.
-            .insert_resource(ThreadLocalVoxelCache::new())
             // Ordering the cache flusher and double buffering is important, because we don't want to overwrite edits with
             // locally cached chunks. Similarly, empty chunks should be removed before new edits are merged in.
             .add_system_set_to_stage(
