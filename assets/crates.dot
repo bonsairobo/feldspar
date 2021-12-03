@@ -1,0 +1,12 @@
+digraph G {
+  feldspar -> feldspar_map;
+  feldspar -> feldspar_renderer;
+  feldspar -> feldspar_sim;
+  feldspar -> feldspar_gizmos;
+  feldspar -> feldspar_procgen;
+
+  feldspar_sim -> feldspar_map;
+  feldspar_renderer -> feldspar_map;
+  feldspar_gizmos -> feldspar_map;
+  feldspar_procgen -> feldspar_map;
+}
