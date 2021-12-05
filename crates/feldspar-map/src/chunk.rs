@@ -245,7 +245,7 @@ impl ChunkNode {
                 unsafe { ManuallyDrop::drop(&mut write_guard.compressed) };
                 write_guard.decompressed = ManuallyDrop::new(decompressed);
 
-                // Waiters will check this when we downgrade the lock.
+                // Readers don't need to wait anymore.
                 self.state.state.unset_bit(StateBit::Compressed as u8);
 
                 Some(DecompressedChunk {
