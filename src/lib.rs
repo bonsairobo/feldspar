@@ -26,7 +26,7 @@
 //!   - performs voxel and octree queries
 //!   - persists edits to a versioned database
 //! - `feldspar-sim`: a Bevy schedule that runs an RPG-like discrete time simulation in an isolated ECS world
-//! - `feldspar-procgen`: several algorithms for procedurally generating maps
+//! - `feldspar-procgen`: algorithms for procedurally generating maps
 //! - `feldspar-renderer`: a Bevy plugin that renders the currently loaded map
 //! - `feldspar-gizmos`: Bevy plugins that allow GUI interaction with the scene
 //!

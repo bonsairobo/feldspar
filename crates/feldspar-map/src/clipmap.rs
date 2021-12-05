@@ -6,3 +6,5 @@ use grid_tree::OctreeI32;
 pub struct ChunkClipmap {
     pub octree: OctreeI32<ChunkNode>,
 }
+
+impl ChunkClipmap {}
