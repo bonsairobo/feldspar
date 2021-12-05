@@ -1,0 +1,15 @@
+[package]
+name = "feldspar-map"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bytemuck = "1.7"
+either = "1.6"
+glam = "0.20"
+grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main" }
+lz4_flex = "0.9"
+ndshape = "0.2"
+parking_lot = "0.11"
+slab = "0.4"
+static_assertions = "1.1"
