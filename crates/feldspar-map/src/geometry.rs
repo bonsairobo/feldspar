@@ -20,9 +20,8 @@ impl Ray {
         self.velocity
     }
 
-    pub fn set_velocity(&mut self, v: Vec3A) {
-        self.velocity = v;
-        self.inverse_velocity = 1.0 / self.velocity;
+    pub fn inverse_velocity(&self) -> Vec3A {
+        self.inverse_velocity
     }
 
     /// If the ray intersects box `aabb`, returns `(tmin, tmax)`, the entrance and exit times of the ray.
@@ -39,7 +38,7 @@ impl Ray {
         let tmin = t1.min(t2).max_element();
         let tmax = t1.max(t2).min_element();
 
-        (tmax > tmin.max(0.0)).then(|| [tmin, tmax])
+        (tmax >= tmin.max(0.0)).then(|| [tmin, tmax])
     }
 }
 
