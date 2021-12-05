@@ -25,27 +25,19 @@ impl Ray {
         self.inverse_velocity = 1.0 / self.velocity;
     }
 
-    /// If the ray intersects box `b`, returns `(tmin, tmax)`, the entrance and exit times of the ray.
+    /// If the ray intersects box `aabb`, returns `(tmin, tmax)`, the entrance and exit times of the ray.
     ///
-    /// Implemented as branchless "slab method". Does not attempt to handle NaNs properly.
+    /// Implemented as branchless, vectorized "slab method". Does not attempt to handle NaNs properly.
     ///
     /// Refer to: https://tavianator.com/2015/ray_box_nan.html
-    pub fn cast_at_aabb(&self, b: Extent<Vec3A>) -> Option<[f32; 2]> {
-        let blub = b.least_upper_bound();
+    pub fn cast_at_aabb(&self, aabb: Extent<Vec3A>) -> Option<[f32; 2]> {
+        let blub = aabb.least_upper_bound();
 
-        let mut t1 = (b.minimum[0] - self.start[0]) * self.inverse_velocity[0];
-        let mut t2 = (blub[0] - self.start[0]) * self.inverse_velocity[0];
+        let t1 = (aabb.minimum - self.start) * self.inverse_velocity;
+        let t2 = (blub - self.start) * self.inverse_velocity;
 
-        let mut tmin = t1.min(t2);
-        let mut tmax = t1.max(t2);
-
-        for i in 1..3 {
-            t1 = (b.minimum[i] - self.start[i]) * self.inverse_velocity[i];
-            t2 = (blub[i] - self.start[i]) * self.inverse_velocity[i];
-
-            tmin = t1.min(t2).max(tmin);
-            tmax = t1.max(t2).min(tmax);
-        }
+        let tmin = t1.min(t2).max_element();
+        let tmax = t1.max(t2).min_element();
 
         (tmax > tmin.max(0.0)).then(|| [tmin, tmax])
     }
