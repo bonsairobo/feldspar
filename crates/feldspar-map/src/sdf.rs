@@ -60,7 +60,9 @@ mod test {
         assert_eq!(f32::from(F16::ZERO), 0.0);
         assert_eq!(f32::from(F16::MAX), 2.0);
 
-        assert_eq!(F16::from(-2.0), F16::MIN);
+        // Slight FP rounding error
+        assert_eq!(F16::from(-2.0), F16(-32768));
+
         assert_eq!(F16::from(0.0), F16::ZERO);
         assert_eq!(F16::from(2.0), F16::MAX);
     }

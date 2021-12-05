@@ -3,7 +3,7 @@ use crate::{
     NdView, PaletteId8, Sd8,
 };
 
-use bytemuck::{cast_slice, cast_slice_mut};
+use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use either::Either;
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
@@ -18,12 +18,28 @@ pub type ChunkShape = ConstPow2Shape3i32<4, 4, 4>;
 const_assert_eq!(ChunkShape::SIZE, 16 * 16 * 16);
 pub const CHUNK_SIZE: usize = ChunkShape::SIZE as usize;
 
+/// "As far *outside* of the terrain surface as possible."
+pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
+
 /// The fundamental unit of voxel storage.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Chunk {
     /// Signed distance field for geometry.
     pub sdf: SdfChunk,
     /// Voxel "materials" that map into attributes of some [`Palette8`](crate::Palette8).
     pub palette_ids: PaletteIdChunk,
+}
+
+unsafe impl Zeroable for Chunk {}
+unsafe impl Pod for Chunk {}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self {
+            sdf: [AMBIENT_SD8; CHUNK_SIZE],
+            palette_ids: [0; CHUNK_SIZE],
+        }
+    }
 }
 
 const_assert_eq!(mem::size_of::<Chunk>(), 8192);
@@ -53,14 +69,17 @@ impl Chunk {
 
     pub fn compress(&self) -> CompressedChunk {
         let mut encoder = FrameEncoder::new(Vec::new());
-        let mut reader = cast_slice(self.sdf.as_ref());
-        io::copy(&mut reader, &mut encoder).unwrap();
+        let mut sdf_reader = cast_slice(self.sdf.as_ref());
+        io::copy(&mut sdf_reader, &mut encoder).unwrap() as usize;
+        let mut palette_reader = cast_slice(self.palette_ids.as_ref());
+        io::copy(&mut palette_reader, &mut encoder).unwrap();
         CompressedChunk {
-            bytes: encoder.into_inner().into_boxed_slice(),
+            bytes: encoder.finish().unwrap().into_boxed_slice(),
         }
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CompressedChunk {
     pub bytes: Box<[u8]>,
 }
@@ -76,9 +95,9 @@ impl CompressedChunk {
             sdf: [Sd8(0); CHUNK_SIZE],
             palette_ids: [0; CHUNK_SIZE],
         };
-        let mut reader = FrameDecoder::new(&*self.bytes);
-        io::copy(&mut reader, &mut cast_slice_mut(chunk.sdf.as_mut())).unwrap();
-        io::copy(&mut reader, &mut cast_slice_mut(chunk.palette_ids.as_mut())).unwrap();
+        let mut decoder = FrameDecoder::new(self.bytes.as_ref());
+        let mut writer = bytes_of_mut(&mut chunk);
+        io::copy(&mut decoder, &mut writer).unwrap();
         chunk
     }
 }
@@ -108,6 +127,15 @@ const COMPRESSED_MASK: u8 = StateBit::Compressed.mask();
 pub struct NodeState {
     pub(crate) descendant_is_loading: Bitset8,
     pub(crate) state: AtomicBitset8,
+}
+
+impl Default for NodeState {
+    fn default() -> Self {
+        Self {
+            descendant_is_loading: Bitset8::default(),
+            state: AtomicBitset8::default(),
+        }
+    }
 }
 
 impl NodeState {
@@ -218,7 +246,7 @@ impl ChunkNode {
     }
 
     /// If the slot is currently compressed, then the compressed value is dropped.
-    pub fn get_decompressed_chunk(&self) -> Option<DecompressedChunk<'_>> {
+    pub fn get_decompressed(&self) -> Option<DecompressedChunk<'_>> {
         match self.state.slot_state() {
             SlotState::Compressed => self.decompress_for_read(),
             SlotState::Decompressed => {
@@ -267,9 +295,12 @@ impl ChunkNode {
         &mut self,
         compressed: CompressedChunk,
     ) -> Option<Either<Box<Chunk>, CompressedChunk>> {
-        self.replace_slot(ChunkSlot {
+        let old_value = self.replace_slot(ChunkSlot {
             compressed: ManuallyDrop::new(compressed),
-        })
+        });
+        self.state.state.set_bit(StateBit::Occupied as u8);
+        self.state.state.set_bit(StateBit::Compressed as u8);
+        old_value
     }
 
     /// Replace the existing chunk value with a [`Box<Chunk>`].
@@ -277,9 +308,19 @@ impl ChunkNode {
         &mut self,
         decompressed: Box<Chunk>,
     ) -> Option<Either<Box<Chunk>, CompressedChunk>> {
-        self.replace_slot(ChunkSlot {
+        let old_value = self.replace_slot(ChunkSlot {
             decompressed: ManuallyDrop::new(decompressed),
-        })
+        });
+        self.state.state.set_bit(StateBit::Occupied as u8);
+        self.state.state.unset_bit(StateBit::Compressed as u8);
+        old_value
+    }
+
+    /// Take the existing chunk value, leaving the slot empty.
+    pub fn take_chunk(&mut self) -> Option<Either<Box<Chunk>, CompressedChunk>> {
+        let old_value = self.replace_slot(ChunkSlot { empty: () });
+        self.state.state.unset_bit(StateBit::Occupied as u8);
+        old_value
     }
 
     fn replace_slot(&mut self, new_slot: ChunkSlot) -> Option<Either<Box<Chunk>, CompressedChunk>> {
@@ -310,6 +351,7 @@ impl<'a> AsRef<Chunk> for DecompressedChunk<'a> {
 
 /// This slot type is nearly equivalent to this enum:
 /// ```
+/// # use feldspar_map::{Chunk, CompressedChunk};
 /// enum ChunkSlot {
 ///     Empty,
 ///     Compressed(CompressedChunk),
@@ -328,3 +370,54 @@ const_assert_eq!(
     mem::size_of::<ChunkSlot>(),
     2 * mem::size_of::<*const i32>()
 );
+
+// ████████╗███████╗███████╗████████╗
+// ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
+//    ██║   █████╗  ███████╗   ██║
+//    ██║   ██╔══╝  ╚════██║   ██║
+//    ██║   ███████╗███████║   ██║
+//    ╚═╝   ╚══════╝╚══════╝   ╚═╝
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn chunk_compression_roundtrip() {
+        let chunk = Chunk::default();
+        assert_eq!(chunk.compress().decompress(), chunk);
+    }
+
+    #[test]
+    fn chunk_node_data_slot_round_trip() {
+        let mut node = ChunkNode::new_empty(NodeState::default());
+
+        let chunk = Box::new(Chunk::default());
+        let old = node.put_decompressed(chunk);
+        assert_eq!(old, None);
+        assert_eq!(node.state().slot_state(), SlotState::Decompressed);
+
+        node.put_compressed(Chunk::default().compress());
+        assert_eq!(node.state().slot_state(), SlotState::Compressed);
+
+        // Spawn some threads to read the chunk. All of them should see the same value, and it should only be decompressed once.
+        let node_ref = &node;
+        crossbeam::scope(move |scope| {
+            for _ in 0..10 {
+                scope.spawn(|_| {
+                    let decompressed = node_ref.get_decompressed().unwrap();
+                    assert_eq!(decompressed.as_ref(), &Chunk::default());
+                });
+            }
+        })
+        .unwrap();
+        assert_eq!(node.state().slot_state(), SlotState::Decompressed);
+
+        node.put_compressed(Chunk::default().compress());
+        assert_eq!(node.state().slot_state(), SlotState::Compressed);
+
+        let chunk = node.take_chunk();
+        assert_eq!(chunk, Some(Either::Right(Chunk::default().compress())));
+        assert_eq!(node.state().slot_state(), SlotState::Empty);
+    }
+}
