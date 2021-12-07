@@ -115,11 +115,9 @@ impl ChunkClipMap {
         let mut earliest_elem: Option<RayTraceHeapElem> = None;
 
         while let Some(elem) = heap.pop() {
-            if elem.ptr.level() == min_level {
-                if elem.time_window[0] < earliest_entrance_time {
-                    earliest_entrance_time = elem.time_window[0];
-                    earliest_elem = Some(elem);
-                }
+            if elem.ptr.level() == min_level && elem.time_window[0] < earliest_entrance_time {
+                earliest_entrance_time = elem.time_window[0];
+                earliest_elem = Some(elem);
                 continue;
             }
 
@@ -146,11 +144,9 @@ impl ChunkClipMap {
             );
 
             // We're looking for the leaf node with the earliest intersection time.
-            if is_leaf {
-                if elem.time_window[0] < earliest_entrance_time {
-                    earliest_entrance_time = elem.time_window[0];
-                    earliest_elem = Some(elem);
-                }
+            if is_leaf && elem.time_window[0] < earliest_entrance_time {
+                earliest_entrance_time = elem.time_window[0];
+                earliest_elem = Some(elem);
             }
         }
 
