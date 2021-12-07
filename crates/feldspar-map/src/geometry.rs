@@ -71,7 +71,6 @@ impl Ray {
             }
 
             let nudge_t_max = t_max - nudge_duration;
-            let chunk_extent = chunk_extent_ivec3_from_min(chunk_min);
             let iter = GridRayIter3::new(nudge_start, self.velocity);
             for (t_entrance, p) in iter {
                 // We technically "advanced the clock" by nudge_duration before we started this iterator.

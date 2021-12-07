@@ -111,21 +111,15 @@ impl ChunkClipMap {
             }
         }
 
+        let mut earliest_entrance_time = f32::INFINITY;
         let mut earliest_elem: Option<RayTraceHeapElem> = None;
-        let earliest_mut = &mut earliest_elem;
-        let mut try_replace_earliest_elem = |new_elem: RayTraceHeapElem| {
-            if let Some(cur_earliest_elem) = earliest_mut {
-                if new_elem.time_window[0] < cur_earliest_elem.time_window[0] {
-                    *earliest_mut = Some(new_elem);
-                }
-            } else {
-                *earliest_mut = Some(new_elem);
-            }
-        };
 
         while let Some(elem) = heap.pop() {
             if elem.ptr.level() == min_level {
-                try_replace_earliest_elem(elem);
+                if elem.time_window[0] < earliest_entrance_time {
+                    earliest_entrance_time = elem.time_window[0];
+                    earliest_elem = Some(elem);
+                }
                 continue;
             }
 
@@ -137,6 +131,11 @@ impl ChunkClipMap {
                     is_leaf = false;
                     let extent = chunk_extent_vec3a(child_ptr.level(), child_coords);
                     if let Some(time_window) = ray.cast_at_extent(extent) {
+                        if time_window[0] > earliest_entrance_time {
+                            // Don't bother visiting children, they couldn't possibly have an earlier time if the parent
+                            // doesn't.
+                            return;
+                        }
                         heap.push(RayTraceHeapElem {
                             ptr: child_ptr,
                             coords: child_coords,
@@ -148,7 +147,10 @@ impl ChunkClipMap {
 
             // We're looking for the leaf node with the earliest intersection time.
             if is_leaf {
-                try_replace_earliest_elem(elem);
+                if elem.time_window[0] < earliest_entrance_time {
+                    earliest_entrance_time = elem.time_window[0];
+                    earliest_elem = Some(elem);
+                }
             }
         }
 
@@ -195,6 +197,7 @@ pub fn in_chunk(p: IVec3) -> IVec3 {
     p >> CHUNK_SHAPE_LOG2_IVEC3
 }
 
+#[derive(Clone, Copy)]
 struct RayTraceHeapElem {
     ptr: NodePtr,
     coords: IVec3,
