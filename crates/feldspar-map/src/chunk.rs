@@ -77,7 +77,7 @@ impl Chunk {
     pub fn compress(&self) -> CompressedChunk {
         let mut encoder = FrameEncoder::new(Vec::new());
         let mut sdf_reader = cast_slice(self.sdf.as_ref());
-        io::copy(&mut sdf_reader, &mut encoder).unwrap() as usize;
+        io::copy(&mut sdf_reader, &mut encoder).unwrap();
         let mut palette_reader = cast_slice(self.palette_ids.as_ref());
         io::copy(&mut palette_reader, &mut encoder).unwrap();
         CompressedChunk {
