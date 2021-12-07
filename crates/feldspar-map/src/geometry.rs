@@ -1,7 +1,4 @@
-use crate::{
-    chunk_extent_ivec3_from_min, chunk_extent_vec3a_from_min, Chunk, ChunkShape, PaletteId8, Sd8,
-    CHUNK_SIZE,
-};
+use crate::{chunk_extent_vec3a_from_min, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE};
 
 use grid_ray::GridRayIter3;
 use ilattice::extent::Extent;
@@ -39,7 +36,7 @@ impl Ray {
     ///
     /// Implemented as branchless, vectorized "slab method". Does not attempt to handle NaNs properly.
     ///
-    /// Refer to: https://tavianator.com/2015/ray_box_nan.html
+    /// Refer to [this reference](https://tavianator.com/2015/ray_box_nan.html).
     pub fn cast_at_extent(&self, aabb: Extent<Vec3A>) -> Option<[f32; 2]> {
         let blub = aabb.least_upper_bound();
 
