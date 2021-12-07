@@ -32,6 +32,7 @@ mod clipmap;
 mod database;
 mod geometry;
 mod ndview;
+mod node;
 mod palette;
 mod sdf;
 
@@ -41,5 +42,11 @@ pub use clipmap::*;
 pub use database::*;
 pub use geometry::*;
 pub use ndview::*;
+pub use node::*;
 pub use palette::*;
 pub use sdf::*;
+
+use ahash::{AHashMap, AHashSet};
+
+type SmallKeyHashMap<K, V> = AHashMap<K, V>;
+type SmallKeyHashSet<K> = AHashSet<K>;

@@ -1,5 +1,5 @@
-use glam::Vec3A;
 use ilattice::extent::Extent;
+use ilattice::glam::Vec3A;
 
 pub struct Ray {
     pub start: Vec3A,
@@ -29,7 +29,7 @@ impl Ray {
     /// Implemented as branchless, vectorized "slab method". Does not attempt to handle NaNs properly.
     ///
     /// Refer to: https://tavianator.com/2015/ray_box_nan.html
-    pub fn cast_at_aabb(&self, aabb: Extent<Vec3A>) -> Option<[f32; 2]> {
+    pub fn cast_at_extent(&self, aabb: Extent<Vec3A>) -> Option<[f32; 2]> {
         let blub = aabb.least_upper_bound();
 
         let t1 = (aabb.minimum - self.start) * self.inverse_velocity;
@@ -66,7 +66,7 @@ mod test {
 
         let aabb = Extent::from_min_and_lub(Vec3A::splat(1.1), Vec3A::splat(2.0));
 
-        assert_eq!(ray.cast_at_aabb(aabb), None);
+        assert_eq!(ray.cast_at_extent(aabb), None);
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod test {
 
         let aabb = Extent::from_min_and_lub(Vec3A::splat(1.1), Vec3A::splat(2.0));
 
-        let [tmin, tmax] = ray.cast_at_aabb(aabb).unwrap();
+        let [tmin, tmax] = ray.cast_at_extent(aabb).unwrap();
         assert_relative_eq!(tmin, 0.1);
         assert_relative_eq!(tmax, 1.0);
     }
