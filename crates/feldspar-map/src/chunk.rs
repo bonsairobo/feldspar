@@ -1,7 +1,8 @@
 use crate::{NdView, PaletteId8, Sd8};
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
-use ilattice::glam::{const_ivec3, IVec3};
+use ilattice::extent::Extent;
+use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
 use static_assertions::const_assert_eq;
@@ -13,10 +14,19 @@ pub type ChunkShape = ConstPow2Shape3i32<4, 4, 4>;
 const_assert_eq!(ChunkShape::SIZE, 16 * 16 * 16);
 pub const CHUNK_SIZE: usize = ChunkShape::SIZE as usize;
 pub const CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!([16; 3]);
+pub const CHUNK_SHAPE_VEC3A: Vec3A = const_vec3a!([16.0; 3]);
 pub const CHUNK_SHAPE_LOG2_IVEC3: IVec3 = const_ivec3!([4; 3]);
 
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
+
+pub fn chunk_extent_ivec3_from_min(min: IVec3) -> Extent<IVec3> {
+    Extent::from_min_and_shape(min, CHUNK_SHAPE_IVEC3)
+}
+
+pub fn chunk_extent_vec3a_from_min(min: Vec3A) -> Extent<Vec3A> {
+    Extent::from_min_and_shape(min, CHUNK_SHAPE_VEC3A)
+}
 
 /// The fundamental unit of voxel storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,8 +1,10 @@
 use crate::{ChunkNode, Ray, CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3};
 
+use float_ord::FloatOrd;
 use grid_tree::{FillCommand, Level, NodePtr, OctreeI32, SlotState, VisitCommand};
 use ilattice::glam::{IVec3, Vec3A};
 use ilattice::prelude::Extent;
+use std::collections::BinaryHeap;
 
 /// An octree of [`ChunkNode`]s.
 ///
@@ -95,59 +97,68 @@ impl ChunkClipMap {
         }
     }
 
-    /// Visit [`NodePtr`]s breadth-first, skipping octants than don't intersect `ray`.
-    ///
-    /// Going breadth-first is more fair if the search needs to be terminated early.
-    pub fn visit_ray_intersections(
-        &self,
-        ray: Ray,
-        min_level: Level,
-        mut visitor: impl FnMut(NodePtr, IVec3, Extent<Vec3A>, [f32; 2]) -> VisitCommand,
-    ) {
-        for (root_ptr, root_coords) in self.octree.iter_roots() {
-            let extent = chunk_extent_vec3a(root_ptr.level(), root_coords);
-            if let Some(time_window) = ray.cast_at_extent(extent) {
-                self.octree.visit_tree_breadth_first(
-                    root_ptr,
-                    root_coords,
-                    min_level,
-                    |ptr, coords| {
-                        let extent = chunk_extent_vec3a(ptr.level(), coords);
-                        if let Some(time_window) = ray.cast_at_extent(extent) {
-                            visitor(ptr, coords, extent, time_window)
-                        } else {
-                            VisitCommand::SkipDescendants
-                        }
-                    },
-                );
-            }
-        }
-    }
-
     pub fn earliest_ray_intersection(
         &self,
         ray: Ray,
         min_level: Level,
     ) -> Option<(NodePtr, IVec3, [f32; 2])> {
-        let mut earliest_window = [f32::INFINITY; 2];
-        let mut earliest_ptr = None;
-        let mut earliest_coords = IVec3::ZERO;
-        self.visit_ray_intersections(ray, min_level, |ptr, coords, _aabb, window| {
-            // Take the intersection window that started earliest and has the lowest level.
-            if window[0] < earliest_window[0]
-                && earliest_ptr
-                    .map(|ep: NodePtr| ptr.level() <= ep.level())
-                    .unwrap_or(true)
-            {
-                earliest_ptr = Some(ptr);
-                earliest_coords = coords;
-                earliest_window = window;
+        let mut heap = BinaryHeap::new();
+        for (root_ptr, root_coords) in self.octree.iter_roots() {
+            let extent = chunk_extent_vec3a(root_ptr.level(), root_coords);
+            if let Some(time_window) = ray.cast_at_extent(extent) {
+                heap.push(RayTraceHeapElem {
+                    ptr: root_ptr,
+                    coords: root_coords,
+                    time_window,
+                });
             }
-            VisitCommand::Continue
-        });
+        }
 
-        (earliest_window[1] >= earliest_window[0])
-            .then(|| (earliest_ptr.unwrap(), earliest_coords, earliest_window))
+        let mut earliest_elem: Option<RayTraceHeapElem> = None;
+        let earliest_mut = &mut earliest_elem;
+        let mut try_replace_earliest_elem = |new_elem: RayTraceHeapElem| {
+            if let Some(cur_earliest_elem) = earliest_mut {
+                if new_elem.time_window[0] < cur_earliest_elem.time_window[0] {
+                    *earliest_mut = Some(new_elem);
+                }
+            } else {
+                *earliest_mut = Some(new_elem);
+            }
+        };
+
+        while let Some(elem) = heap.pop() {
+            if elem.ptr.level() == min_level {
+                try_replace_earliest_elem(elem);
+                continue;
+            }
+
+            let mut is_leaf = true;
+            self.octree.visit_children_with_coordinates(
+                elem.ptr,
+                elem.coords,
+                |child_ptr, child_coords| {
+                    is_leaf = false;
+                    let extent = chunk_extent_vec3a(child_ptr.level(), child_coords);
+                    if let Some(time_window) = ray.cast_at_extent(extent) {
+                        heap.push(RayTraceHeapElem {
+                            ptr: child_ptr,
+                            coords: child_coords,
+                            time_window,
+                        });
+                    }
+                },
+            );
+
+            // We're looking for the leaf node with the earliest intersection time.
+            if is_leaf {
+                try_replace_earliest_elem(elem);
+            }
+        }
+
+        earliest_elem.and_then(|elem| {
+            (elem.time_window[1] >= elem.time_window[0])
+                .then(|| (elem.ptr, elem.coords, elem.time_window))
+        })
     }
 }
 
@@ -185,6 +196,40 @@ pub fn in_chunk_extent(e: Extent<IVec3>) -> Extent<IVec3> {
 /// Returns the "chunk coordinates" of the chunk that contains `p`.
 pub fn in_chunk(p: IVec3) -> IVec3 {
     p >> CHUNK_SHAPE_LOG2_IVEC3
+}
+
+struct RayTraceHeapElem {
+    ptr: NodePtr,
+    coords: IVec3,
+    time_window: [f32; 2],
+}
+
+impl RayTraceHeapElem {
+    fn tmin(&self) -> f32 {
+        self.time_window[0]
+    }
+}
+
+impl PartialEq for RayTraceHeapElem {
+    fn eq(&self, other: &Self) -> bool {
+        self.ptr == other.ptr
+    }
+}
+
+impl Eq for RayTraceHeapElem {}
+
+impl PartialOrd for RayTraceHeapElem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        FloatOrd(self.tmin())
+            .partial_cmp(&FloatOrd(other.tmin()))
+            .map(|o| o.reverse())
+    }
+}
+
+impl Ord for RayTraceHeapElem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        FloatOrd(self.tmin()).cmp(&FloatOrd(other.tmin())).reverse()
+    }
 }
 
 // ████████╗███████╗███████╗████████╗
@@ -235,48 +280,22 @@ mod test {
     }
 
     #[test]
-    fn visit_ray_intersection() {
+    fn earliest_ray_intersection() {
         let mut tree = ChunkClipMap::new(3);
 
         // Insert just a single chunk at level 0.
         let write_key = NodeKey::new(0, IVec3::new(1, 1, 1));
         tree.octree
-            .fill_path_to_node(write_key, |node_ptr, node_coords, _state| {
+            .fill_path_to_node(write_key, |_node_ptr, _node_coords, _state| {
                 FillCommand::Write(ChunkNode::default(), VisitCommand::Continue)
             });
 
-        let mut intersections = Vec::new();
-        tree.visit_ray_intersections(
-            Ray::new(Vec3A::ZERO, Vec3A::ONE),
-            0,
-            |ptr, coords, aabb, time_window| {
-                intersections.push((ptr.level(), coords, aabb, time_window));
-                VisitCommand::Continue
-            },
-        );
+        let (_ptr, coords, [tmin, tmax]) = tree
+            .earliest_ray_intersection(Ray::new(Vec3A::ZERO, Vec3A::ONE), 0)
+            .unwrap();
 
-        assert_eq!(
-            intersections.as_slice(),
-            &[
-                (
-                    2,
-                    IVec3::new(0, 0, 0),
-                    Extent::from_min_and_shape(Vec3A::ZERO, Vec3A::splat(64.0)),
-                    [0.0, 64.0]
-                ),
-                (
-                    1,
-                    IVec3::new(0, 0, 0),
-                    Extent::from_min_and_shape(Vec3A::ZERO, Vec3A::splat(32.0)),
-                    [0.0, 32.0]
-                ),
-                (
-                    0,
-                    IVec3::new(1, 1, 1),
-                    Extent::from_min_and_shape(Vec3A::splat(1.0), Vec3A::splat(16.0)),
-                    [1.0, 17.0]
-                ),
-            ]
-        );
+        assert_eq!(coords, IVec3::new(1, 1, 1));
+        assert_eq!(tmin, 1.0);
+        assert_eq!(tmax, 17.0);
     }
 }
