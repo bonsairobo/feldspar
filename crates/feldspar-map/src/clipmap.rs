@@ -86,7 +86,7 @@ impl ChunkClipMap {
 
     /// Visit [`NodePtr`]s breadth-first, skipping octants than don't intersect `ray`.
     ///
-    /// By going breadth-first is more fair if the search needs to be terminated early.
+    /// Going breadth-first is more fair if the search needs to be terminated early.
     pub fn visit_ray_intersections(
         &self,
         ray: Ray,
@@ -162,6 +162,8 @@ pub fn chunk_extent_ivec3(level: Level, coordinates: IVec3) -> Extent<IVec3> {
     Extent::from_min_and_shape(min, shape)
 }
 
+/// Transforms a world-space extent `e` into a chunk-space extent `e'` that contains the coordinates of all chunks intersected
+/// by `e`.
 pub fn in_chunk_extent(e: Extent<IVec3>) -> Extent<IVec3> {
     Extent::from_min_and_max(
         e.minimum >> CHUNK_SHAPE_LOG2_IVEC3,
