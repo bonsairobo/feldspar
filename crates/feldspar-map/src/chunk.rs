@@ -1,7 +1,7 @@
 use crate::{NdView, PaletteId8, Sd8};
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
-use ilattice::extent::Extent;
+use ilattice::prelude::Extent;
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};

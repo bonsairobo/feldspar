@@ -1,7 +1,7 @@
 use crate::{chunk_extent_vec3a_from_min, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE};
 
 use grid_ray::GridRayIter3;
-use ilattice::extent::Extent;
+use ilattice::prelude::Extent;
 use ilattice::glam::{IVec3, Vec3A};
 use ndshape::ConstShape;
 
