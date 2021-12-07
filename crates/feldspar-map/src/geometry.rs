@@ -54,35 +54,36 @@ impl Ray {
         &self,
         chunk_min: IVec3,
         chunk: &Chunk,
-        mut visitor: impl FnMut(IVec3, Sd8, PaletteId8) -> bool,
+        mut visitor: impl FnMut(f32, IVec3, Sd8, PaletteId8) -> bool,
     ) {
         let chunk_extent = chunk_extent_vec3a_from_min(chunk_min.as_vec3a());
-        if let Some([t_min, t_max]) = self.cast_at_extent(chunk_extent) {
+        if let Some([t_enter_chunk, t_exit_chunk]) = self.cast_at_extent(chunk_extent) {
             // Nudge the start and end a little bit to be sure we stay in the chunk.
-            let duration = t_max - t_min;
-            let nudge_duration = 0.000001 * duration;
-            let nudge_start = self.position_at(t_min + nudge_duration);
+            let duration_inside_chunk = t_exit_chunk - t_enter_chunk;
+            let nudge_duration = 0.000001 * duration_inside_chunk;
+            let t_nudge_start = t_enter_chunk + nudge_duration;
+            let nudge_start = self.position_at(t_nudge_start);
 
             if !chunk_extent.contains(nudge_start) {
                 return;
             }
 
-            let nudge_t_max = t_max - nudge_duration;
+            let nudge_t_max = t_exit_chunk - nudge_duration;
             let iter = GridRayIter3::new(nudge_start, self.velocity);
-            for (t_entrance, p) in iter {
-                // We technically "advanced the clock" by nudge_duration before we started this iterator.
-                let actual_t_entrance = t_entrance + nudge_duration;
-                if actual_t_entrance > nudge_t_max {
+            for (t_enter, p) in iter {
+                // We technically "advanced the clock" by t_nudge_start before we started this iterator.
+                let actual_t_enter = t_enter + t_nudge_start;
+                if actual_t_enter > nudge_t_max {
                     break;
                 }
-                let offset = (p - chunk_min).max(IVec3::ZERO);
+                let offset = p - chunk_min;
                 let index = ChunkShape::linearize(offset.to_array()) as usize;
                 if index >= CHUNK_SIZE {
                     // Floating Point Paranoia: Just avoid panicking from out-of-bounds access at all costs.
                     // TODO: log warning!
                     break;
                 }
-                if !visitor(p, chunk.sdf[index], chunk.palette_ids[index]) {
+                if !visitor(actual_t_enter, p, chunk.sdf[index], chunk.palette_ids[index]) {
                     break;
                 }
             }
@@ -131,7 +132,7 @@ mod test {
     }
 
     #[test]
-    fn cast_through_chunk() {
+    fn cast_into_chunk_and_hit_voxel() {
         let ray = Ray::new(Vec3A::ONE, Vec3A::new(1.0, 1.0, 1.0));
         let mut chunk = Chunk::default();
         let chunk_min = IVec3::new(1, 1, 1);
@@ -140,7 +141,7 @@ mod test {
         chunk.palette_view_mut()[IVec3::new(7, 7, 7) - chunk_min] = 1;
 
         let mut visited_coords = Vec::new();
-        ray.cast_through_chunk(chunk_min, &chunk, |coords, sdf, palette_id| {
+        ray.cast_through_chunk(chunk_min, &chunk, |_t_enter, coords, sdf, palette_id| {
             assert_eq!(sdf, AMBIENT_SD8);
             visited_coords.push(coords);
             palette_id == 0
@@ -168,6 +169,47 @@ mod test {
                 IVec3::new(6, 6, 7),
                 IVec3::new(6, 7, 7),
                 IVec3::new(7, 7, 7),
+            ]
+        );
+    }
+
+    #[test]
+    fn cast_through_chunk() {
+        let ray = Ray::new(Vec3A::new(-0.5, 0.5, 0.5), Vec3A::new(1.0, 0.0, 0.0));
+        let chunk = Chunk::default();
+        let chunk_min = IVec3::ZERO;
+
+        let [t_chunk_enter, t_chunk_exit] = ray.cast_at_extent(chunk_extent_vec3a_from_min(chunk_min.as_vec3a())).unwrap();
+
+        let mut visited_coords = Vec::new();
+        ray.cast_through_chunk(chunk_min, &chunk, |t_enter, coords, sdf, palette_id| {
+            assert_eq!(sdf, AMBIENT_SD8);
+            assert_eq!(palette_id, 0);
+            assert!(t_enter >= t_chunk_enter);
+            assert!(t_enter < t_chunk_exit);
+            visited_coords.push(coords);
+            true
+        });
+
+        assert_eq!(
+            visited_coords.as_slice(),
+            &[
+                IVec3::new(0, 0, 0),
+                IVec3::new(1, 0, 0),
+                IVec3::new(2, 0, 0),
+                IVec3::new(3, 0, 0),
+                IVec3::new(4, 0, 0),
+                IVec3::new(5, 0, 0),
+                IVec3::new(6, 0, 0),
+                IVec3::new(7, 0, 0),
+                IVec3::new(8, 0, 0),
+                IVec3::new(9, 0, 0),
+                IVec3::new(10, 0, 0),
+                IVec3::new(11, 0, 0),
+                IVec3::new(12, 0, 0),
+                IVec3::new(13, 0, 0),
+                IVec3::new(14, 0, 0),
+                IVec3::new(15, 0, 0),
             ]
         );
     }
