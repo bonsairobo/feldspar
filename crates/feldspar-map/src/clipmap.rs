@@ -46,10 +46,7 @@ impl ChunkClipMap {
                     filler(NodePtr::new(root_level, root_ptr), root_coords, state)
                 })
             {
-                // TODO: call filler on root
-                let root_ptr = self
-                    .octree
-                    .get_or_create_root(root_coords, ChunkNode::default);
+                let root_ptr = NodePtr::new(root_level, root_ptr);
                 self.octree.fill_descendants(
                     root_ptr,
                     root_coords,
