@@ -39,22 +39,33 @@ impl ChunkClipMap {
 
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
-            // TODO: call filler on root
-            let root_ptr = self
-                .octree
-                .get_or_create_root(root_coords, ChunkNode::default);
-            self.octree
-                .fill_descendants(root_ptr, root_coords, min_level, |ptr, coords, state| {
-                    let chunk_extent = chunk_extent_ivec3(ptr.level(), coords);
-                    let extent_at_level = descendant_extent(ptr.level() - min_level, chunk_extent);
-                    let intersecting = !extent_at_level.intersection(&extent).is_empty();
-
-                    if intersecting {
-                        filler(ptr, coords, state)
-                    } else {
-                        FillCommand::SkipDescendants
-                    }
+            if let FillCommand::Write(root_ptr, VisitCommand::Continue) =
+                self.octree.fill_root(root_coords, |root_ptr, state| {
+                    filler(NodePtr::new(root_level, root_ptr), root_coords, state)
                 })
+            {
+                // TODO: call filler on root
+                let root_ptr = self
+                    .octree
+                    .get_or_create_root(root_coords, ChunkNode::default);
+                self.octree.fill_descendants(
+                    root_ptr,
+                    root_coords,
+                    min_level,
+                    |ptr, coords, state| {
+                        let chunk_extent = chunk_extent_ivec3(ptr.level(), coords);
+                        let extent_at_level =
+                            descendant_extent(ptr.level() - min_level, chunk_extent);
+                        let intersecting = !extent_at_level.intersection(&extent).is_empty();
+
+                        if intersecting {
+                            filler(ptr, coords, state)
+                        } else {
+                            FillCommand::SkipDescendants
+                        }
+                    },
+                )
+            }
         }
     }
 
