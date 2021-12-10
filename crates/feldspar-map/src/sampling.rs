@@ -31,7 +31,7 @@ impl OctantKernel {
     pub fn downsample_sdf(&self, src: &SdfChunk, dst_offset: usize, dst: &mut SdfChunk) {
         // Not only do we get the mean signed distance value by dividing by the octant volume, but we also re-normalize by
         // dividing by 2.
-        let rescale = 1.0 / (2.0 * 8.0);
+        const RESCALE: f32 = 1.0 / (2.0 * 8.0);
 
         let iter_extent = Extent::from_min_and_shape(IVec3::ZERO, CHUNK_SHAPE_IVEC3 >> 1);
         for p in iter_extent.iter3() {
@@ -42,7 +42,7 @@ impl OctantKernel {
             for stride in self.strides {
                 sum += f32::from(src[src_i + stride]);
             }
-            dst[dst_offset + dst_i] = (sum * rescale).into();
+            dst[dst_offset + dst_i] = (sum * RESCALE).into();
         }
     }
 
