@@ -193,6 +193,14 @@ pub fn in_chunk(p: IVec3) -> IVec3 {
     p >> CHUNK_SHAPE_LOG2_IVEC3
 }
 
+pub fn min_child_chunk(parent_coords: IVec3) -> IVec3 {
+    parent_coords << 1
+}
+
+pub fn parent_chunk(child_coords: IVec3) -> IVec3 {
+    child_coords >> 1
+}
+
 #[derive(Clone, Copy)]
 struct RayTraceHeapElem {
     ptr: NodePtr,

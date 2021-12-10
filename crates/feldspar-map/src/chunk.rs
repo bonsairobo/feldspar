@@ -1,4 +1,5 @@
-use crate::{NdView, PaletteId8, Sd8};
+use crate::{NdView, PaletteId8, Sd8, min_child_chunk};
+use crate::sampling::OctantKernel;
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use ilattice::prelude::Extent;
@@ -16,6 +17,8 @@ pub const CHUNK_SIZE: usize = ChunkShape::SIZE as usize;
 pub const CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!([16; 3]);
 pub const CHUNK_SHAPE_VEC3A: Vec3A = const_vec3a!([16.0; 3]);
 pub const CHUNK_SHAPE_LOG2_IVEC3: IVec3 = const_ivec3!([4; 3]);
+pub const HALF_CHUNK_SHAPE_LOG2_IVEC3: IVec3 = const_ivec3!([3; 3]);
+pub const HALF_CHUNK_EDGE_LENGTH: i32 = 8;
 
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
@@ -83,6 +86,19 @@ impl Chunk {
         CompressedChunk {
             bytes: encoder.finish().unwrap().into_boxed_slice(),
         }
+    }
+
+    /// Downsamples the SDF and palette IDs from `self` at half resolution into one octant of a parent chunk.
+    pub fn downsample_into(&self, kernel: &mut OctantKernel, self_coords: IVec3, parent_coords: IVec3, parent_chunk: &mut Chunk) {
+        let min_child = min_child_chunk(parent_coords);
+        let child_offset = self_coords - min_child;
+        let dst_offset = ChunkShape::linearize((child_offset << HALF_CHUNK_SHAPE_LOG2_IVEC3).to_array()) as usize;
+
+        // SDF is downsampled as a mean of the 8 children.
+        kernel.downsample_sdf(&self.sdf, dst_offset, &mut parent_chunk.sdf);
+
+        // Palette IDs are downsampled as the mode of the 8 children.
+        kernel.downsample_labels(&self.palette_ids, dst_offset, &mut parent_chunk.palette_ids);
     }
 }
 

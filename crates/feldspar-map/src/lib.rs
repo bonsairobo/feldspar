@@ -34,6 +34,7 @@ mod geometry;
 mod ndview;
 mod node;
 mod palette;
+mod sampling;
 mod sdf;
 
 pub use allocator::*;
