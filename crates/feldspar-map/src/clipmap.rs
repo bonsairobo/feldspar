@@ -57,13 +57,13 @@ impl ChunkClipMap {
     pub fn fill_extent_intersections(
         &mut self,
         min_level: Level,
-        extent: Extent<IVec3>,
+        min_level_extent: Extent<IVec3>,
         mut filler: impl FnMut(NodePtr, IVec3, SlotState) -> FillCommand<ChunkNode>,
     ) {
         // Find the smallest extent at root level that covers the extent at the given level.
         let root_level = self.octree.root_level();
-        let root_extent = in_chunk_extent(extent);
-        let root_level_extent = ancestor_extent(root_level - min_level, root_extent);
+        let min_level_extent = in_chunk_extent(min_level_extent);
+        let root_level_extent = ancestor_extent(root_level - min_level, min_level_extent);
 
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
@@ -79,9 +79,11 @@ impl ChunkClipMap {
                     min_level,
                     |ptr, coords, state| {
                         let chunk_extent = chunk_extent_ivec3(ptr.level(), coords);
-                        let extent_at_level =
+                        let min_level_chunk_extent =
                             descendant_extent(ptr.level() - min_level, chunk_extent);
-                        let intersecting = !extent_at_level.intersection(&extent).is_empty();
+                        let intersecting = !min_level_chunk_extent
+                            .intersection(&min_level_extent)
+                            .is_empty();
 
                         if intersecting {
                             filler(ptr, coords, state)
@@ -96,7 +98,7 @@ impl ChunkClipMap {
 
     /// NOTE: This only does sphere-on-sphere intersection tests, i.e. `lod0_sphere` vs the chunk node's bounding sphere. The
     /// chunks extents need not intersect.
-    pub fn fill_lod0_sphere_intersections(
+    pub fn fill_sphere_intersections(
         &mut self,
         min_level: Level,
         lod0_sphere: Sphere,
