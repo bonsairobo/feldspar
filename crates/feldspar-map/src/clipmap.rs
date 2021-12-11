@@ -1,9 +1,10 @@
 mod node;
 mod raycast;
+mod streaming;
 
 pub use grid_tree::{FillCommand, Level, NodePtr, SlotState, VisitCommand};
+pub use node::*;
 
-use node::ChunkNode;
 use crate::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3};
 
 use grid_tree::OctreeI32;

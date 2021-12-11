@@ -24,6 +24,36 @@
 //! During the process of procedural generation, it can be useful to think of entire chunks as "tiles." In this way, data can be
 //! shared between multiple instances of a tile. When a chunk is edited, it needs to copy the original tile's chunk before
 //! modification. This introduces another layer of indirection for reads as well.
+//!
+//! # Database
+//!
+//! The [`MapDatabase`] provides versioned, persistent storage for all map data, mostly [`Chunk`]s. Each non-current version
+//! only stores the deltas required to reach that version from a neighboring version. By the structure of the version tree and
+//! transitivity, every version is reachable from the current one. Transitioning between versions can be done by either:
+//!
+//! - creating a new version by flushing outstanding edits
+//! - forcing a transition along the full path from the current version to the destination version
+//!
+//! # Multiresolution Streaming
+//!
+//! All voxel chunks live in the [`ChunkClipMap`] in either their raw or compressed representation. [`Chunk`]s may also be
+//! downsampled to the appropriate resolution for rendering. The clipmap supports various queries that iterate over a subset of
+//! the internal octree. These queries will contain relevant, high-priority items according to some [`Ord`] implementation and a
+//! recursive predicate on the [`NodeState`]. This is used for:
+//!
+//! - finding chunks that should be loaded from the database
+//! - finding chunks that should be downsampled
+//! - finding chunks that should change their render detail
+//! - finding empty chunks that can be dropped
+//! - finding infrequently used chunks that should be compressed
+//! - finding distant chunks that can be persisted and evicted from memory
+//!
+//! # Bevy Plugin
+//!
+//! When building this crate with the `"bevy"` feature enabled, you get access to the [`FeldsparMapPlugin`]. This Bevy `Plugin`
+//! implements systems to drive the work of maintaining a [`ChunkClipMap`] and corresponding database. It exposes interfaces for
+//! other Bevy ECS systems to both edit and query the currently loaded map without having to worry about the details of
+//! streaming data and managing transactions.
 
 mod allocator;
 mod bitset;
@@ -44,6 +74,11 @@ pub use geometry::*;
 pub use ndview::*;
 pub use palette::*;
 pub use sdf::*;
+
+#[cfg(feature = "bevy")]
+mod plugin;
+#[cfg(feature = "bevy")]
+pub use plugin::*;
 
 // Re-exports.
 pub use ilattice;
