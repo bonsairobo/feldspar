@@ -50,7 +50,7 @@
 //!
 //! # Bevy Plugin
 //!
-//! When building this crate with the `"bevy"` feature enabled, you get access to the [`FeldsparMapPlugin`]. This Bevy `Plugin`
+//! When building this crate with the `"bevy"` feature enabled, you get access to the [`MapPlugin`]. This Bevy `Plugin`
 //! implements systems to drive the work of maintaining a [`ChunkClipMap`] and corresponding database. It exposes interfaces for
 //! other Bevy ECS systems to both edit and query the currently loaded map without having to worry about the details of
 //! streaming data and managing transactions.

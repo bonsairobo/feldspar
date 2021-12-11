@@ -1,1 +1,1 @@
-pub struct FeldsparMapPlugin {}
+pub struct MapPlugin {}
