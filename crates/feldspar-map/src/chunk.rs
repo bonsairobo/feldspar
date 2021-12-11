@@ -1,4 +1,4 @@
-use crate::{NdView, PaletteId8, Sd8, min_child_chunk};
+use crate::{NdView, PaletteId8, Sd8, min_child_chunk, Level};
 use crate::sampling::OctantKernel;
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
@@ -23,13 +23,44 @@ pub const HALF_CHUNK_EDGE_LENGTH: i32 = 8;
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
 
-pub fn chunk_extent_ivec3_from_min(min: IVec3) -> Extent<IVec3> {
-    Extent::from_min_and_shape(min, CHUNK_SHAPE_IVEC3)
-}
+mod coordinates {
+    use super::*;
 
-pub fn chunk_extent_vec3a_from_min(min: Vec3A) -> Extent<Vec3A> {
-    Extent::from_min_and_shape(min, CHUNK_SHAPE_VEC3A)
+    pub fn chunk_extent_ivec3_from_min(min: IVec3) -> Extent<IVec3> {
+        Extent::from_min_and_shape(min, CHUNK_SHAPE_IVEC3)
+    }
+
+    pub fn chunk_extent_vec3a_from_min(min: Vec3A) -> Extent<Vec3A> {
+        Extent::from_min_and_shape(min, CHUNK_SHAPE_VEC3A)
+    }
+
+    pub fn chunk_extent_vec3a(level: Level, coordinates: IVec3) -> Extent<Vec3A> {
+        chunk_extent_ivec3(level, coordinates).map_components(|c| c.as_vec3a())
+    }
+
+    /// The extent in voxel coordinates of the chunk found at `(level, chunk coordinates)`.
+    pub fn chunk_extent_ivec3(level: Level, coordinates: IVec3) -> Extent<IVec3> {
+        let min = coordinates << level;
+        let shape = CHUNK_SHAPE_IVEC3 << level;
+        Extent::from_min_and_shape(min, shape)
+    }
+
+    /// Transforms a world-space extent `e` into a chunk-space extent `e'` that contains the coordinates of all chunks intersected
+    /// by `e`.
+    pub fn in_chunk_extent(e: Extent<IVec3>) -> Extent<IVec3> {
+        Extent::from_min_and_max(
+            e.minimum >> CHUNK_SHAPE_LOG2_IVEC3,
+            e.max() >> CHUNK_SHAPE_LOG2_IVEC3,
+        )
+    }
+
+    /// Returns the "chunk coordinates" of the chunk that contains `p`.
+    pub fn in_chunk(p: IVec3) -> IVec3 {
+        p >> CHUNK_SHAPE_LOG2_IVEC3
+    }
 }
+pub use coordinates::*;
+
 
 /// The fundamental unit of voxel storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

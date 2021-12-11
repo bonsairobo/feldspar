@@ -2,14 +2,20 @@ mod node;
 mod raycast;
 mod streaming;
 
-pub use grid_tree::{FillCommand, Level, NodePtr, SlotState, VisitCommand};
+pub use grid_tree::{FillCommand, Level, NodeKey, NodePtr, SlotState, VisitCommand};
 pub use node::*;
 
-use crate::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3};
+use crate::chunk_extent_ivec3;
 
 use grid_tree::OctreeI32;
-use ilattice::glam::{IVec3, Vec3A};
+use ilattice::glam::IVec3;
 use ilattice::prelude::Extent;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NodeLocation {
+    pub coordinates: IVec3,
+    pub ptr: NodePtr,
+}
 
 /// An octree of [`ChunkNode`]s.
 ///
@@ -100,49 +106,29 @@ impl ChunkClipMap {
     }
 }
 
-pub fn ancestor_extent(levels_up: Level, extent: Extent<IVec3>) -> Extent<IVec3> {
-    // We need the minimum to be an ancestor of (cover) the minimum.
-    // We need the maximum to be an ancestor of (cover) the maximum.
-    Extent::from_min_and_max(extent.minimum >> levels_up, extent.max() >> levels_up)
-}
+mod coordinates {
+    use super::*;
 
-pub fn descendant_extent(levels_down: Level, extent: Extent<IVec3>) -> Extent<IVec3> {
-    // Minimum and shape are simply multiplied.
-    extent << levels_down
-}
+    pub fn ancestor_extent(levels_up: Level, extent: Extent<IVec3>) -> Extent<IVec3> {
+        // We need the minimum to be an ancestor of (cover) the minimum.
+        // We need the maximum to be an ancestor of (cover) the maximum.
+        Extent::from_min_and_max(extent.minimum >> levels_up, extent.max() >> levels_up)
+    }
 
-pub fn chunk_extent_vec3a(level: Level, coordinates: IVec3) -> Extent<Vec3A> {
-    chunk_extent_ivec3(level, coordinates).map_components(|c| c.as_vec3a())
-}
+    pub fn descendant_extent(levels_down: Level, extent: Extent<IVec3>) -> Extent<IVec3> {
+        // Minimum and shape are simply multiplied.
+        extent << levels_down
+    }
 
-/// The extent in voxel coordinates of the chunk found at `(level, chunk coordinates)`.
-pub fn chunk_extent_ivec3(level: Level, coordinates: IVec3) -> Extent<IVec3> {
-    let min = coordinates << level;
-    let shape = CHUNK_SHAPE_IVEC3 << level;
-    Extent::from_min_and_shape(min, shape)
-}
+    pub fn min_child_chunk(parent_coords: IVec3) -> IVec3 {
+        parent_coords << 1
+    }
 
-/// Transforms a world-space extent `e` into a chunk-space extent `e'` that contains the coordinates of all chunks intersected
-/// by `e`.
-pub fn in_chunk_extent(e: Extent<IVec3>) -> Extent<IVec3> {
-    Extent::from_min_and_max(
-        e.minimum >> CHUNK_SHAPE_LOG2_IVEC3,
-        e.max() >> CHUNK_SHAPE_LOG2_IVEC3,
-    )
+    pub fn parent_chunk(child_coords: IVec3) -> IVec3 {
+        child_coords >> 1
+    }
 }
-
-/// Returns the "chunk coordinates" of the chunk that contains `p`.
-pub fn in_chunk(p: IVec3) -> IVec3 {
-    p >> CHUNK_SHAPE_LOG2_IVEC3
-}
-
-pub fn min_child_chunk(parent_coords: IVec3) -> IVec3 {
-    parent_coords << 1
-}
-
-pub fn parent_chunk(child_coords: IVec3) -> IVec3 {
-    child_coords >> 1
-}
+pub use coordinates::*;
 
 // ████████╗███████╗███████╗████████╗
 // ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
@@ -155,9 +141,9 @@ pub fn parent_chunk(child_coords: IVec3) -> IVec3 {
 mod test {
     use super::*;
     use super::node::NodeState;
-    use crate::{Chunk, NdView, Ray};
+    use crate::{Chunk, NdView, Ray, in_chunk_extent, chunk_extent_ivec3_from_min};
+    use crate::glam::Vec3A;
 
-    use grid_tree::NodeKey;
     use ndshape::Shape3i32;
 
     #[test]
@@ -165,7 +151,7 @@ mod test {
         let mut tree = ChunkClipMap::new(7);
 
         let write_min = IVec3::new(1, 2, 3);
-        let write_extent = Extent::from_min_and_shape(write_min, CHUNK_SHAPE_IVEC3);
+        let write_extent = chunk_extent_ivec3_from_min(write_min);
         let chunks_extent = in_chunk_extent(write_extent);
 
         // Fill in the extent with empty nodes and cache pointers to them.
