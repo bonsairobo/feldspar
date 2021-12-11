@@ -2,6 +2,8 @@ use super::ChunkClipMap;
 use crate::NodeLocation;
 use crate::glam::Vec3A;
 
+use smallvec::SmallVec;
+
 impl ChunkClipMap {
     /// Searches for all of the nodes marked as "loading." It is up to the caller to subsequently write or delete the data in
     /// the loading node so that it gets marked as "loaded".
@@ -42,13 +44,13 @@ pub enum LodChange {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SplitChunk {
     pub old_chunk: NodeLocation,
-    pub new_chunks: Vec<NodeLocation>,
+    pub new_chunks: SmallVec<[NodeLocation; 8]>,
 }
 
 /// Merge many `old_chunks` into `new_chunk`. The number of old chunks depends on how many levels of detail the octant has
 /// moved.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MergeChunks {
-    pub old_chunks: Vec<NodeLocation>,
+    pub old_chunks: SmallVec<[NodeLocation; 8]>,
     pub new_chunk: NodeLocation,
 }
