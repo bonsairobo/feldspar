@@ -36,10 +36,10 @@
 //!
 //! # Multiresolution Streaming
 //!
-//! All voxel chunks live in the [`ChunkClipMap`] in either their raw or compressed representation. [`Chunk`]s may also be
-//! downsampled to the appropriate resolution for rendering. The clipmap supports various queries that iterate over a subset of
-//! the internal octree. These queries will contain relevant, high-priority items according to some [`Ord`] implementation and a
-//! recursive predicate on the [`NodeState`]. This is used for:
+//! All voxel chunks in "observable range" are stored in the [`ChunkClipMap`] in either their raw or compressed representation.
+//! [`Chunk`]s may also be downsampled to the appropriate resolution for rendering. The clipmap supports various queries that
+//! iterate over a subset of the internal octree. These queries will contain relevant, high-priority items according to some
+//! [`Ord`] implementation and a recursive predicate on the [`NodeState`]. This is used for:
 //!
 //! - finding chunks that should be loaded from the database
 //! - finding chunks that should be downsampled
