@@ -47,6 +47,10 @@ pub use node::*;
 pub use palette::*;
 pub use sdf::*;
 
+// Re-exports.
+pub use ilattice;
+pub use ilattice::glam;
+
 use ahash::{AHashMap, AHashSet};
 
 type SmallKeyHashMap<K, V> = AHashMap<K, V>;
