@@ -1,8 +1,7 @@
-use crate::{NdView, PaletteId8, Sd8, min_child_chunk, Level};
+use crate::{NdView, PaletteId8, Sd8, min_child_coords};
 use crate::sampling::OctantKernel;
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
-use ilattice::prelude::Extent;
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
@@ -22,45 +21,6 @@ pub const HALF_CHUNK_EDGE_LENGTH: i32 = 8;
 
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
-
-mod coordinates {
-    use super::*;
-
-    pub fn chunk_extent_ivec3_from_min(min: IVec3) -> Extent<IVec3> {
-        Extent::from_min_and_shape(min, CHUNK_SHAPE_IVEC3)
-    }
-
-    pub fn chunk_extent_vec3a_from_min(min: Vec3A) -> Extent<Vec3A> {
-        Extent::from_min_and_shape(min, CHUNK_SHAPE_VEC3A)
-    }
-
-    pub fn chunk_extent_vec3a(level: Level, coordinates: IVec3) -> Extent<Vec3A> {
-        chunk_extent_ivec3(level, coordinates).map_components(|c| c.as_vec3a())
-    }
-
-    /// The extent in voxel coordinates of the chunk found at `(level, chunk coordinates)`.
-    pub fn chunk_extent_ivec3(level: Level, coordinates: IVec3) -> Extent<IVec3> {
-        let min = coordinates << level;
-        let shape = CHUNK_SHAPE_IVEC3 << level;
-        Extent::from_min_and_shape(min, shape)
-    }
-
-    /// Transforms a world-space extent `e` into a chunk-space extent `e'` that contains the coordinates of all chunks intersected
-    /// by `e`.
-    pub fn in_chunk_extent(e: Extent<IVec3>) -> Extent<IVec3> {
-        Extent::from_min_and_max(
-            e.minimum >> CHUNK_SHAPE_LOG2_IVEC3,
-            e.max() >> CHUNK_SHAPE_LOG2_IVEC3,
-        )
-    }
-
-    /// Returns the "chunk coordinates" of the chunk that contains `p`.
-    pub fn in_chunk(p: IVec3) -> IVec3 {
-        p >> CHUNK_SHAPE_LOG2_IVEC3
-    }
-}
-pub use coordinates::*;
-
 
 /// The fundamental unit of voxel storage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -121,7 +81,7 @@ impl Chunk {
 
     /// Downsamples the SDF and palette IDs from `self` at half resolution into one octant of a parent chunk.
     pub fn downsample_into(&self, kernel: &mut OctantKernel, self_coords: IVec3, parent_coords: IVec3, parent_chunk: &mut Chunk) {
-        let min_child = min_child_chunk(parent_coords);
+        let min_child = min_child_coords(parent_coords);
         let child_offset = self_coords - min_child;
         let dst_offset = ChunkShape::linearize((child_offset << HALF_CHUNK_SHAPE_LOG2_IVEC3).to_array()) as usize;
 
@@ -166,10 +126,34 @@ impl CompressedChunk {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::chunk_extent_ivec3_from_min;
 
     #[test]
-    fn chunk_compression_roundtrip() {
+    fn compress_default_chunk() {
         let chunk = Chunk::default();
-        assert_eq!(chunk.compress().decompress(), chunk);
+        let compressed = chunk.compress();
+        let compression_ratio = compressed.bytes.len() as f32 / (mem::size_of::<Chunk>() as f32);
+        assert!(compression_ratio < 0.008, "{}", compression_ratio);
+        assert_eq!(compressed.decompress(), chunk);
+    }
+
+    #[test]
+    fn compress_chunk_with_sphere_sdf() {
+        let mut chunk = Chunk::default();
+        let extent = chunk_extent_ivec3_from_min(IVec3::ZERO);
+        let center = (extent.minimum + extent.least_upper_bound()) / 2;
+        for p in extent.iter3() {
+            let d = p.as_vec3a().distance(center.as_vec3a());
+            let i = ChunkShape::linearize(p.to_array()) as usize;
+            chunk.sdf[i] = (d - 8.0).into();
+            if d < 8.0 {
+                chunk.palette_ids[i] = 1;
+            }
+        }
+
+        let compressed = chunk.compress();
+        let compression_ratio = compressed.bytes.len() as f32 / (mem::size_of::<Chunk>() as f32);
+        assert!(compression_ratio < 0.19, "{}", compression_ratio);
+        assert_eq!(compressed.decompress(), chunk);
     }
 }

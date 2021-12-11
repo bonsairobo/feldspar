@@ -109,7 +109,6 @@ impl OctantModeCounter {
         self.counts[slot as usize].as_mut().unwrap().count += 1;
     }
 
-    // PERF: compare reset to just overwriting with Default copy
     pub fn get_mode_and_reset(&mut self) -> LabelCount {
         let old_counts = mem::take(&mut self.counts);
         let mut max_count = 0;

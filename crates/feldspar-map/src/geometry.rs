@@ -91,9 +91,26 @@ impl Ray {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Sphere {
     pub center: Vec3A,
     pub radius: f32,
+}
+
+impl Sphere {
+    pub fn contains(&self, other: &Self) -> bool {
+        let dist = self.center.distance(other.center);
+        dist + other.radius < self.radius
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        let dist = self.center.distance(other.center);
+        dist - other.radius < self.radius
+    }
+
+    pub fn aabb(&self) -> Extent<Vec3A> {
+        Extent::from_min_and_shape(Vec3A::splat(-self.radius), Vec3A::splat(2.0 * self.radius)) + self.center
+    }
 }
 
 // ████████╗███████╗███████╗████████╗
