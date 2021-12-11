@@ -10,6 +10,12 @@ pub struct OctantKernel {
     mode_counter: OctantModeCounter,
 }
 
+impl Default for OctantKernel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OctantKernel {
     // TODO: would be nice for this to be const, but it requires const trait methods
     pub fn new() -> Self {
@@ -105,16 +111,14 @@ impl OctantModeCounter {
 
     // PERF: compare reset to just overwriting with Default copy
     pub fn get_mode_and_reset(&mut self) -> LabelCount {
-        let old_counts = mem::replace(&mut self.counts, [None; 8]);
+        let old_counts = mem::take(&mut self.counts);
         let mut max_count = 0;
         let mut max_elem = None;
-        for elem in old_counts {
-            if let Some(elem) = elem {
-                self.label_to_slot[elem.label as usize] = NULL_SLOT;
-                if elem.count > max_count {
-                    max_count = elem.count;
-                    max_elem = Some(elem);
-                }
+        for elem in old_counts.into_iter().flatten() {
+            self.label_to_slot[elem.label as usize] = NULL_SLOT;
+            if elem.count > max_count {
+                max_count = elem.count;
+                max_elem = Some(elem);
             }
         }
         max_elem.unwrap()

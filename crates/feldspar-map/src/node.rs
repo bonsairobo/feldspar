@@ -154,7 +154,7 @@ impl ChunkNode {
                 mem::replace(&mut *mut_slot, new_slot).decompressed
             }))),
             SlotState::Empty => {
-                mem::replace(&mut *mut_slot, new_slot);
+                drop(mem::replace(&mut *mut_slot, new_slot));
                 None
             },
         }
@@ -183,18 +183,10 @@ impl StateBit {
 const OCCUPIED_MASK: u8 = StateBit::Occupied.mask();
 const COMPRESSED_MASK: u8 = StateBit::Compressed.mask();
 
+#[derive(Default)]
 pub struct NodeState {
     pub(crate) descendant_is_loading: Bitset8,
     pub(crate) state: AtomicBitset8,
-}
-
-impl Default for NodeState {
-    fn default() -> Self {
-        Self {
-            descendant_is_loading: Bitset8::default(),
-            state: AtomicBitset8::default(),
-        }
-    }
 }
 
 impl NodeState {
