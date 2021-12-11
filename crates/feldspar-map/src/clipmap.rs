@@ -1,8 +1,10 @@
+mod node;
 mod raycast;
 
 pub use grid_tree::{FillCommand, Level, NodePtr, SlotState, VisitCommand};
 
-use crate::{ChunkNode, CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3};
+use node::ChunkNode;
+use crate::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3};
 
 use grid_tree::OctreeI32;
 use ilattice::glam::{IVec3, Vec3A};
@@ -151,7 +153,8 @@ pub fn parent_chunk(child_coords: IVec3) -> IVec3 {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{Chunk, NdView, NodeState, Ray};
+    use super::node::NodeState;
+    use crate::{Chunk, NdView, Ray};
 
     use grid_tree::NodeKey;
     use ndshape::Shape3i32;

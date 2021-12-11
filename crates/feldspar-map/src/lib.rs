@@ -32,7 +32,6 @@ mod clipmap;
 mod database;
 mod geometry;
 mod ndview;
-mod node;
 mod palette;
 mod sampling;
 mod sdf;
@@ -43,7 +42,6 @@ pub use clipmap::*;
 pub use database::*;
 pub use geometry::*;
 pub use ndview::*;
-pub use node::*;
 pub use palette::*;
 pub use sdf::*;
 
