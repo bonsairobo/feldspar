@@ -26,15 +26,7 @@ const_assert_eq!(mem::size_of::<ChunkNode>(), 4 * mem::size_of::<usize>());
 
 impl Drop for ChunkNode {
     fn drop(&mut self) {
-        match self.state.slot_state() {
-            SlotState::Compressed => unsafe {
-                ManuallyDrop::drop(&mut self.chunk.get_mut().compressed)
-            },
-            SlotState::Decompressed => unsafe {
-                ManuallyDrop::drop(&mut self.chunk.get_mut().decompressed)
-            },
-            SlotState::Empty => (),
-        }
+        self.replace_slot(ChunkSlot { empty: () });
     }
 }
 
