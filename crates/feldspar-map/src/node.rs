@@ -161,7 +161,10 @@ impl ChunkNode {
             SlotState::Decompressed => Some(Either::Left(ManuallyDrop::into_inner(unsafe {
                 mem::replace(&mut *mut_slot, new_slot).decompressed
             }))),
-            SlotState::Empty => None,
+            SlotState::Empty => {
+                mem::replace(&mut *mut_slot, new_slot);
+                None
+            },
         }
     }
 }
@@ -298,6 +301,8 @@ mod test {
 
     #[test]
     fn chunk_node_data_slot_round_trip() {
+        let compressed_chunk = Chunk::default().compress();
+
         let mut node = ChunkNode::new_empty(NodeState::default());
 
         let chunk = Box::new(Chunk::default());
@@ -305,7 +310,7 @@ mod test {
         assert_eq!(old, None);
         assert_eq!(node.state().slot_state(), SlotState::Decompressed);
 
-        node.put_compressed(Chunk::default().compress());
+        node.put_compressed(compressed_chunk.clone());
         assert_eq!(node.state().slot_state(), SlotState::Compressed);
 
         // Spawn some threads to read the chunk. All of them should see the same value, and it should only be decompressed once.
@@ -321,11 +326,11 @@ mod test {
         .unwrap();
         assert_eq!(node.state().slot_state(), SlotState::Decompressed);
 
-        node.put_compressed(Chunk::default().compress());
+        node.put_compressed(compressed_chunk.clone());
         assert_eq!(node.state().slot_state(), SlotState::Compressed);
 
         let chunk = node.take_chunk();
-        assert_eq!(chunk, Some(Either::Right(Chunk::default().compress())));
+        assert_eq!(chunk, Some(Either::Right(compressed_chunk.clone())));
         assert_eq!(node.state().slot_state(), SlotState::Empty);
     }
 }
