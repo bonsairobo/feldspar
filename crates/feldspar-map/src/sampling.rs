@@ -1,4 +1,4 @@
-use crate::{SdfChunk, PaletteIdChunk, ChunkShape, CHUNK_SHAPE_IVEC3};
+use crate::{ChunkShape, PaletteIdChunk, SdfChunk, CHUNK_SHAPE_IVEC3};
 
 use ilattice::glam::IVec3;
 use ilattice::prelude::Extent;
@@ -30,7 +30,10 @@ impl OctantKernel {
             }
         }
 
-        Self { strides, mode_counter: OctantModeCounter::default() }
+        Self {
+            strides,
+            mode_counter: OctantModeCounter::default(),
+        }
     }
 
     /// Takes the **mean** of each octant in `src` to achieve half resolution; result is written to `dst`.
@@ -53,7 +56,12 @@ impl OctantKernel {
     }
 
     /// Takes the **mode** of each octant to achieve half resolution.
-    pub fn downsample_labels(&mut self, src: &PaletteIdChunk, dst_offset: usize, dst: &mut PaletteIdChunk) {
+    pub fn downsample_labels(
+        &mut self,
+        src: &PaletteIdChunk,
+        dst_offset: usize,
+        dst: &mut PaletteIdChunk,
+    ) {
         let iter_extent = Extent::from_min_and_shape(IVec3::ZERO, CHUNK_SHAPE_IVEC3 >> 1);
         for p in iter_extent.iter3() {
             let dst_i = ChunkShape::linearize(p.to_array()) as usize;
@@ -157,8 +165,12 @@ mod tests {
                 None,
                 None,
                 None,
-            ]);
-        assert_eq!(counter.get_mode_and_reset(), LabelCount { label: 1, count: 1 });
+            ]
+        );
+        assert_eq!(
+            counter.get_mode_and_reset(),
+            LabelCount { label: 1, count: 1 }
+        );
     }
 
     #[test]
@@ -178,8 +190,12 @@ mod tests {
                 None,
                 None,
                 None,
-            ]);
-            assert_eq!(counter.get_mode_and_reset(), LabelCount { label: 1, count: 2 });
+            ]
+        );
+        assert_eq!(
+            counter.get_mode_and_reset(),
+            LabelCount { label: 1, count: 2 }
+        );
     }
 
     #[test]
@@ -199,8 +215,12 @@ mod tests {
                 None,
                 None,
                 None,
-            ]);
-        assert_eq!(counter.get_mode_and_reset(), LabelCount { label: 1, count: 1 });
+            ]
+        );
+        assert_eq!(
+            counter.get_mode_and_reset(),
+            LabelCount { label: 1, count: 1 }
+        );
     }
 
     #[test]
@@ -220,7 +240,11 @@ mod tests {
                 None,
                 None,
                 None,
-            ]);
-        assert_eq!(counter.get_mode_and_reset(), LabelCount { label: 3, count: 4 });
+            ]
+        );
+        assert_eq!(
+            counter.get_mode_and_reset(),
+            LabelCount { label: 3, count: 4 }
+        );
     }
 }

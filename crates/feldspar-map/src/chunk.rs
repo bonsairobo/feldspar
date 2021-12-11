@@ -1,5 +1,5 @@
-use crate::{NdView, PaletteId8, Sd8, min_child_coords};
 use crate::sampling::OctantKernel;
+use crate::{min_child_coords, NdView, PaletteId8, Sd8};
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
@@ -80,10 +80,18 @@ impl Chunk {
     }
 
     /// Downsamples the SDF and palette IDs from `self` at half resolution into one octant of a parent chunk.
-    pub fn downsample_into(&self, kernel: &mut OctantKernel, self_coords: IVec3, parent_coords: IVec3, parent_chunk: &mut Chunk) {
+    pub fn downsample_into(
+        &self,
+        kernel: &mut OctantKernel,
+        self_coords: IVec3,
+        parent_coords: IVec3,
+        parent_chunk: &mut Chunk,
+    ) {
         let min_child = min_child_coords(parent_coords);
         let child_offset = self_coords - min_child;
-        let dst_offset = ChunkShape::linearize((child_offset << HALF_CHUNK_SHAPE_LOG2_IVEC3).to_array()) as usize;
+        let dst_offset =
+            ChunkShape::linearize((child_offset << HALF_CHUNK_SHAPE_LOG2_IVEC3).to_array())
+                as usize;
 
         // SDF is downsampled as a mean of the 8 children.
         kernel.downsample_sdf(&self.sdf, dst_offset, &mut parent_chunk.sdf);

@@ -1,8 +1,8 @@
 use crate::{chunk_extent_vec3a_from_min, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE};
 
 use grid_ray::GridRayIter3;
-use ilattice::prelude::Extent;
 use ilattice::glam::{IVec3, Vec3A};
+use ilattice::prelude::Extent;
 use ndshape::ConstShape;
 
 pub struct Ray {
@@ -83,7 +83,12 @@ impl Ray {
                     // TODO: log warning!
                     break;
                 }
-                if !visitor(actual_t_enter, p, chunk.sdf[index], chunk.palette_ids[index]) {
+                if !visitor(
+                    actual_t_enter,
+                    p,
+                    chunk.sdf[index],
+                    chunk.palette_ids[index],
+                ) {
                     break;
                 }
             }
@@ -109,7 +114,8 @@ impl Sphere {
     }
 
     pub fn aabb(&self) -> Extent<Vec3A> {
-        Extent::from_min_and_shape(Vec3A::splat(-self.radius), Vec3A::splat(2.0 * self.radius)) + self.center
+        Extent::from_min_and_shape(Vec3A::splat(-self.radius), Vec3A::splat(2.0 * self.radius))
+            + self.center
     }
 }
 
@@ -196,7 +202,9 @@ mod test {
         let chunk = Chunk::default();
         let chunk_min = IVec3::ZERO;
 
-        let [t_chunk_enter, t_chunk_exit] = ray.cast_at_extent(chunk_extent_vec3a_from_min(chunk_min.as_vec3a())).unwrap();
+        let [t_chunk_enter, t_chunk_exit] = ray
+            .cast_at_extent(chunk_extent_vec3a_from_min(chunk_min.as_vec3a()))
+            .unwrap();
 
         let mut visited_coords = Vec::new();
         ray.cast_through_chunk(chunk_min, &chunk, |t_enter, coords, sdf, palette_id| {

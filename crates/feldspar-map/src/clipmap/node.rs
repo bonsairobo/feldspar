@@ -156,7 +156,7 @@ impl ChunkNode {
             SlotState::Empty => {
                 drop(mem::replace(&mut *mut_slot, new_slot));
                 None
-            },
+            }
         }
     }
 }

@@ -2,7 +2,10 @@ mod node;
 mod raycast;
 mod streaming;
 
-use crate::{chunk_bounding_sphere, chunk_extent_ivec3, ancestor_extent, descendant_extent, in_chunk_extent, Sphere};
+use crate::{
+    ancestor_extent, chunk_bounding_sphere, chunk_extent_ivec3, descendant_extent, in_chunk_extent,
+    Sphere,
+};
 
 pub use grid_tree::{ChildIndex, FillCommand, Level, NodeKey, NodePtr, SlotState, VisitCommand};
 pub use node::*;
@@ -22,10 +25,7 @@ pub struct NodeLocation {
 
 impl NodeLocation {
     pub fn new(coordinates: IVec3, ptr: NodePtr) -> Self {
-        Self {
-            coordinates,
-            ptr,
-        }
+        Self { coordinates, ptr }
     }
 }
 
@@ -173,10 +173,10 @@ impl ChunkClipMap {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use super::node::NodeState;
-    use crate::{Chunk, NdView, Ray, in_chunk_extent, chunk_extent_ivec3_from_min};
+    use super::*;
     use crate::glam::Vec3A;
+    use crate::{chunk_extent_ivec3_from_min, in_chunk_extent, Chunk, NdView, Ray};
 
     use ndshape::Shape3i32;
 

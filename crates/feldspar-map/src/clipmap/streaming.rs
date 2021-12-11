@@ -1,6 +1,6 @@
 use super::ChunkClipMap;
-use crate::{Level, NodeLocation, Sphere};
 use crate::glam::Vec3A;
+use crate::{Level, NodeLocation, Sphere};
 
 use float_ord::FloatOrd;
 use smallvec::SmallVec;
@@ -45,22 +45,12 @@ impl ChunkClipMap {
 
     /// Searches for all of the nodes marked as "loading." It is up to the caller to subsequently write or delete the data in
     /// the loading node so that it gets marked as "loaded".
-    pub fn loading_nodes(
-        &self,
-        budget: usize,
-        observer: Vec3A,
-        mut rx: impl FnMut(NodeLocation),
-    ) {
+    pub fn loading_nodes(&self, budget: usize, observer: Vec3A, mut rx: impl FnMut(NodeLocation)) {
         todo!()
     }
 
     /// Searches for nodes whose render detail should change.
-    pub fn render_updates(
-        &self,
-        budget: usize,
-        observer: Vec3A,
-        mut rx: impl FnMut(LodChange),
-    ) {
+    pub fn render_updates(&self, budget: usize, observer: Vec3A, mut rx: impl FnMut(LodChange)) {
         todo!()
     }
 }
@@ -122,6 +112,8 @@ impl PartialOrd for ClosestNodeHeapElem {
 
 impl Ord for ClosestNodeHeapElem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        FloatOrd(self.closest_dist_to_observer).cmp(&FloatOrd(other.closest_dist_to_observer)).reverse()
+        FloatOrd(self.closest_dist_to_observer)
+            .cmp(&FloatOrd(other.closest_dist_to_observer))
+            .reverse()
     }
 }

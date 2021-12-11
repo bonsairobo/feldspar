@@ -1,5 +1,5 @@
-use crate::{ChunkClipMap, Ray, Level, NodePtr, chunk_extent_vec3a};
 use crate::glam::IVec3;
+use crate::{chunk_extent_vec3a, ChunkClipMap, Level, NodePtr, Ray};
 
 use float_ord::FloatOrd;
 use std::collections::BinaryHeap;

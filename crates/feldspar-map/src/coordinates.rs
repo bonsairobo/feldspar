@@ -1,9 +1,9 @@
 use super::*;
-use crate::{ChildIndex, CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_VEC3A, Sphere};
+use crate::{ChildIndex, Sphere, CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_VEC3A};
 
-use grid_tree::{OctreeShapeI32, BranchShape};
-use ilattice::prelude::Extent;
+use grid_tree::{BranchShape, OctreeShapeI32};
 use ilattice::glam::{IVec3, Vec3A};
+use ilattice::prelude::Extent;
 
 pub fn chunk_extent_ivec3_from_min(min: IVec3) -> Extent<IVec3> {
     Extent::from_min_and_shape(min, CHUNK_SHAPE_IVEC3)
@@ -57,13 +57,13 @@ pub fn parent_coords(child_coords: IVec3) -> IVec3 {
     child_coords >> 1
 }
 
-pub fn visit_children(
-    parent_coords: IVec3,
-    mut visitor: impl FnMut(ChildIndex, IVec3),
-) {
+pub fn visit_children(parent_coords: IVec3, mut visitor: impl FnMut(ChildIndex, IVec3)) {
     let min_child = min_child_coords(parent_coords);
     for child_i in 0..8 {
-        visitor(child_i, min_child + OctreeShapeI32::delinearize_child(child_i));
+        visitor(
+            child_i,
+            min_child + OctreeShapeI32::delinearize_child(child_i),
+        );
     }
 }
 
