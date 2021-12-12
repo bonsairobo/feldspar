@@ -6,7 +6,9 @@ use crate::{
 };
 
 use float_ord::FloatOrd;
+use grid_tree::NodePtr;
 use smallvec::SmallVec;
+use std::collections::BinaryHeap;
 
 #[derive(Clone, Copy, Debug)]
 pub struct StreamingConfig {
@@ -48,9 +50,76 @@ impl ChunkClipMap {
         &self,
         budget: usize,
         observer: VoxelUnits<Vec3A>,
-        mut rx: impl FnMut(NodeSlot),
+        mut rx: impl FnMut(Level, ChunkUnits<IVec3>),
     ) {
-        todo!()
+        let mut candidate_heap = BinaryHeap::new();
+        let mut num_load_slots = 0;
+
+        for (root_ptr, root_coords) in self.octree.iter_roots() {
+            candidate_heap.push(LoadSearchHeapElem::new(
+                root_ptr.level(),
+                ChunkUnits(root_coords),
+                None,
+                observer,
+            ));
+        }
+
+        while let Some(LoadSearchHeapElem {
+            level,
+            coordinates,
+            ptr,
+            ..
+        }) = candidate_heap.pop()
+        {
+            if num_load_slots >= budget {
+                break;
+            }
+
+            if level == 0 {
+                // We hit LOD0 so this chunk needs to be loaded.
+                rx(level, coordinates);
+                num_load_slots += 1;
+                continue;
+            }
+            let child_level = level - 1;
+
+            if let Some((ptr, node)) = ptr.and_then(|p| self.octree.get_value(p).map(|n| (p, n))) {
+                if node.state().is_loading() && node.state().descendant_is_loading.none() {
+                    // All descendants have loaded, so this slot is ready to be loaded.
+                    rx(level, coordinates);
+
+                    // Leaving this commented, we are choosing not to count LOD > 0 against the budget. Downsampling is much
+                    // faster than generating LOD0, and there are many more LOD0 chunks, so it seems fair to just let as much
+                    // downsampling happen as possible.
+                    // num_load_slots += 1;
+
+                    continue;
+                }
+
+                // Visit all children coordinates that need loading, regardless of which child nodes exist.
+                visit_children(coordinates.into_inner(), |child_index, child_coords| {
+                    if node.state().descendant_is_loading.bit_is_set(child_index) {
+                        candidate_heap.push(LoadSearchHeapElem::new(
+                            child_level,
+                            ChunkUnits(child_coords),
+                            Some(ptr),
+                            observer,
+                        ));
+                    }
+                })
+            } else {
+                // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be
+                // loaded.
+                visit_children(coordinates.into_inner(), |_child_index, child_coords| {
+                    candidate_heap.push(LoadSearchHeapElem::new(
+                        child_level,
+                        ChunkUnits(child_coords),
+                        None,
+                        observer,
+                    ));
+                })
+            }
+        }
     }
 
     /// Searches for nodes whose render detail should change.
@@ -92,30 +161,46 @@ pub struct MergeChunks {
 }
 
 #[derive(Clone, Copy)]
-struct ClosestNodeHeapElem {
-    location: NodeLocation,
-    bounding_sphere: VoxelUnits<Sphere>,
+struct LoadSearchHeapElem {
+    level: Level,
+    coordinates: ChunkUnits<IVec3>,
+    // Optional because we might search into vacant space.
+    ptr: Option<NodePtr>,
     closest_dist_to_observer: VoxelUnits<f32>,
 }
 
-impl ClosestNodeHeapElem {
-    fn center_dist_to_observer(&self) -> VoxelUnits<f32> {
-        VoxelUnits::map2(
-            self.closest_dist_to_observer,
-            self.bounding_sphere,
-            |d, s| d + s.radius,
-        )
+impl LoadSearchHeapElem {
+    fn new(
+        level: Level,
+        coordinates: ChunkUnits<IVec3>,
+        ptr: Option<NodePtr>,
+        observer: VoxelUnits<Vec3A>,
+    ) -> Self {
+        let VoxelUnits(observer) = observer;
+        let VoxelUnits(bounding_sphere) = chunk_bounding_sphere(level, coordinates);
+
+        let center_dist_to_observer = observer.distance(bounding_sphere.center);
+        // Subtract the bounding sphere's radius to estimate the distance from the observer to the *closest point* on the chunk.
+        // This should make it more fair for higher LODs.
+        let closest_dist_to_observer = center_dist_to_observer - bounding_sphere.radius;
+
+        Self {
+            level,
+            coordinates,
+            ptr,
+            closest_dist_to_observer: VoxelUnits(closest_dist_to_observer),
+        }
     }
 }
 
-impl PartialEq for ClosestNodeHeapElem {
+impl PartialEq for LoadSearchHeapElem {
     fn eq(&self, other: &Self) -> bool {
-        self.location.ptr == other.location.ptr
+        self.level == other.level && self.coordinates == other.coordinates
     }
 }
-impl Eq for ClosestNodeHeapElem {}
+impl Eq for LoadSearchHeapElem {}
 
-impl PartialOrd for ClosestNodeHeapElem {
+impl PartialOrd for LoadSearchHeapElem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         VoxelUnits::map2(
             self.closest_dist_to_observer,
@@ -127,7 +212,7 @@ impl PartialOrd for ClosestNodeHeapElem {
     }
 }
 
-impl Ord for ClosestNodeHeapElem {
+impl Ord for LoadSearchHeapElem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         VoxelUnits::map2(
             self.closest_dist_to_observer,
@@ -171,7 +256,7 @@ fn new_nodes_intersecting_sphere_recursive(
 ) {
     let VoxelUnits(old_clip_sphere) = old_clip_sphere;
     let VoxelUnits(new_clip_sphere) = new_clip_sphere;
-    let VoxelUnits(node_sphere) = chunk_bounding_sphere(0, node_coords);
+    let VoxelUnits(node_sphere) = chunk_bounding_sphere(node_level, node_coords);
 
     let dist_to_new_clip_sphere = node_sphere.center.distance(new_clip_sphere.center);
     let node_intersects_new_clip_sphere =

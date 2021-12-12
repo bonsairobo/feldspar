@@ -20,5 +20,11 @@ macro_rules! def_units {
     };
 }
 
-def_units!(VoxelUnits, "Denotes that the inner `T` is given in units of voxels.");
-def_units!(ChunkUnits, "Denotes that the inner `T` is given in units of chunks.");
+def_units!(
+    VoxelUnits,
+    "Denotes that the inner `T` is given in units of voxels. LOD is left unspecified."
+);
+def_units!(
+    ChunkUnits,
+    "Denotes that the inner `T` is given in units of chunks. LOD is left unspecified."
+);
