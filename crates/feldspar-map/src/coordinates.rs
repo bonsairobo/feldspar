@@ -13,12 +13,18 @@ pub fn chunk_extent_from_min_vec3a(min: VoxelUnits<Vec3A>) -> VoxelUnits<Extent<
     min.map(|m| Extent::from_min_and_shape(m, CHUNK_SHAPE_VEC3A))
 }
 
-pub fn chunk_extent_at_level_vec3a(level: Level, coordinates: ChunkUnits<IVec3>) -> VoxelUnits<Extent<Vec3A>> {
+pub fn chunk_extent_at_level_vec3a(
+    level: Level,
+    coordinates: ChunkUnits<IVec3>,
+) -> VoxelUnits<Extent<Vec3A>> {
     chunk_extent_at_level_ivec3(level, coordinates).map(|e| e.map_components(|c| c.as_vec3a()))
 }
 
 /// The extent in voxel coordinates of the chunk found at `(level, chunk coordinates)`.
-pub fn chunk_extent_at_level_ivec3(level: Level, coordinates: ChunkUnits<IVec3>) -> VoxelUnits<Extent<IVec3>> {
+pub fn chunk_extent_at_level_ivec3(
+    level: Level,
+    coordinates: ChunkUnits<IVec3>,
+) -> VoxelUnits<Extent<IVec3>> {
     let min = coordinates.0 << level;
     let shape = CHUNK_SHAPE_IVEC3 << level;
     VoxelUnits(Extent::from_min_and_shape(min, shape))
@@ -87,4 +93,13 @@ pub fn chunk_bounding_sphere(level: Level, coords: ChunkUnits<IVec3>) -> VoxelUn
         let radius = (lod0_extent.shape.max_element() >> 1) as f32 * 3f32.sqrt();
         Sphere { center, radius }
     })
+}
+
+/// Returns the extent covering all chunks at `level` which intersect `lod0_sphere`.
+pub fn sphere_intersecting_ancestor_chunk_extent(
+    lod0_sphere: VoxelUnits<Sphere>,
+    level: Level,
+) -> ChunkUnits<Extent<IVec3>> {
+    let sphere_extent = in_chunk_extent(lod0_sphere.map(|s| s.aabb().containing_integer_extent()));
+    sphere_extent.map(|e| ancestor_extent(level, e))
 }
