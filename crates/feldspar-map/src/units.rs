@@ -1,6 +1,6 @@
 macro_rules! def_units {
-    ($t: ident) => {
-        /// Denotes that the inner `T` is given in units of voxels.
+    ($t:ident, $docstr:expr) => {
+        #[doc = $docstr]
         #[derive(Clone, Copy, Debug, Eq, PartialEq)]
         pub struct $t<T>(pub T);
 
@@ -20,5 +20,5 @@ macro_rules! def_units {
     };
 }
 
-def_units!(VoxelUnits);
-def_units!(ChunkUnits);
+def_units!(VoxelUnits, "Denotes that the inner `T` is given in units of voxels.");
+def_units!(ChunkUnits, "Denotes that the inner `T` is given in units of chunks.");
