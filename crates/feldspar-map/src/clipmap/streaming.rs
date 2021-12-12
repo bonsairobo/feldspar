@@ -109,8 +109,8 @@ impl PartialOrd for ClosestNodeHeapElem {
             other.closest_dist_to_observer,
             |d1, d2| FloatOrd(d1).partial_cmp(&FloatOrd(d2))
         )
-            .into_inner()
-            .map(|o| o.reverse())
+        .into_inner()
+        .map(|o| o.reverse())
     }
 }
 
@@ -121,7 +121,7 @@ impl Ord for ClosestNodeHeapElem {
             other.closest_dist_to_observer,
             |d1, d2| FloatOrd(d1).cmp(&FloatOrd(d2))
         )
-            .into_inner()
-            .reverse()
+        .into_inner()
+        .reverse()
     }
 }

@@ -148,7 +148,7 @@ mod test {
     #[test]
     fn compress_chunk_with_sphere_sdf() {
         let mut chunk = Chunk::default();
-        let extent = chunk_extent_from_min_ivec3(VoxelUnits(IVec3::ZERO)).into_inner();
+        let VoxelUnits(extent) = chunk_extent_from_min_ivec3(VoxelUnits(IVec3::ZERO));
         let center = (extent.minimum + extent.least_upper_bound()) / 2;
         for p in extent.iter3() {
             let d = p.as_vec3a().distance(center.as_vec3a());

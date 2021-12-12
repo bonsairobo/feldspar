@@ -62,10 +62,10 @@ impl ChunkClipMap {
     ) {
         // Find the smallest extent at root level that covers the extent at the given level.
         let root_level = self.octree.root_level();
-        let root_level_extent = in_chunk_extent(min_level_extent).map(|e| ancestor_extent(root_level - min_level, e));
+        let ChunkUnits(root_level_extent) = in_chunk_extent(min_level_extent).map(|e| ancestor_extent(root_level - min_level, e));
 
         // Recurse on each tree.
-        for root_coords in root_level_extent.into_inner().iter3() {
+        for root_coords in root_level_extent.iter3() {
             if let FillCommand::Write(root_ptr, VisitCommand::Continue) =
                 self.octree.fill_root(root_coords, |root_ptr, state| {
                     filler(NodePtr::new(root_level, root_ptr), ChunkUnits(root_coords), state)
@@ -81,11 +81,11 @@ impl ChunkClipMap {
                         let chunk_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
                         let min_level_chunk_extent =
                             chunk_extent.map(|e| descendant_extent(ptr.level() - min_level, e));
-                        let intersecting = VoxelUnits::map2(
+                        let VoxelUnits(intersecting) = VoxelUnits::map2(
                             min_level_chunk_extent,
                             min_level_extent,
                             |e1, e2| !e1.intersection(&e2).is_empty(),
-                        ).into_inner();
+                        );
 
                         if intersecting {
                             filler(ptr, coords, state)
@@ -109,10 +109,10 @@ impl ChunkClipMap {
         // Find the smallest extent at root level that covers the extent at the given level.
         let root_level = self.octree.root_level();
         let sphere_extent = in_chunk_extent(lod0_sphere.map(|s| s.aabb().containing_integer_extent()));
-        let root_level_extent = sphere_extent.map(|e| ancestor_extent(root_level, e));
+        let ChunkUnits(root_level_extent) = sphere_extent.map(|e| ancestor_extent(root_level, e));
 
         // Recurse on each tree.
-        for root_coords in root_level_extent.into_inner().iter3() {
+        for root_coords in root_level_extent.iter3() {
             let root_sphere = chunk_bounding_sphere(root_level, ChunkUnits(root_coords));
             if !VoxelUnits::map2(lod0_sphere, root_sphere, |s1, s2| s1.intersects(&s2)).into_inner() {
                 continue;
@@ -192,16 +192,16 @@ mod test {
 
         let write_min = VoxelUnits(IVec3::new(1, 2, 3));
         let write_extent = chunk_extent_from_min_ivec3(write_min);
-        let chunks_extent = in_chunk_extent(write_extent).into_inner();
+        let ChunkUnits(chunks_extent) = in_chunk_extent(write_extent);
 
         // Fill in the extent with empty nodes and cache pointers to them.
         let mut node_pointers = NdView::new(
             vec![NodePtr::NULL; chunks_extent.volume() as usize],
             Shape3i32::new(chunks_extent.shape.to_array()),
         );
-        tree.fill_extent_intersections(4, write_extent, |node_ptr, node_coords, _state| {
+        tree.fill_extent_intersections(4, write_extent, |node_ptr, ChunkUnits(node_coords), _state| {
             if node_ptr.level() == 4 {
-                node_pointers[node_coords.into_inner() - chunks_extent.minimum] = node_ptr;
+                node_pointers[node_coords - chunks_extent.minimum] = node_ptr;
             }
             FillCommand::Write(ChunkNode::default(), VisitCommand::Continue)
         });

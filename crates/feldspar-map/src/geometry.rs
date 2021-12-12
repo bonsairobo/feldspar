@@ -1,4 +1,4 @@
-use crate::{chunk_min, chunk_extent_vec3a, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE, ChunkUnits};
+use crate::{chunk_min, chunk_extent_vec3a, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE, ChunkUnits, VoxelUnits};
 
 use grid_ray::GridRayIter3;
 use ilattice::glam::{IVec3, Vec3A};
@@ -57,7 +57,7 @@ impl Ray {
         chunk: &Chunk,
         mut visitor: impl FnMut(f32, IVec3, Sd8, PaletteId8) -> bool,
     ) {
-        let chunk_aabb = chunk_extent_vec3a(chunk_coords).into_inner();
+        let VoxelUnits(chunk_aabb) = chunk_extent_vec3a(chunk_coords);
         if let Some([t_enter_chunk, t_exit_chunk]) = self.cast_at_extent(chunk_aabb) {
             // Nudge the start and end a little bit to be sure we stay in the chunk.
             let duration_inside_chunk = t_exit_chunk - t_enter_chunk;
@@ -69,7 +69,7 @@ impl Ray {
                 return;
             }
 
-            let chunk_min = chunk_min(chunk_coords).into_inner();
+            let VoxelUnits(chunk_min) = chunk_min(chunk_coords);
             let nudge_t_max = t_exit_chunk - nudge_duration;
             let iter = GridRayIter3::new(nudge_start, self.velocity);
             for (t_enter, p) in iter {
@@ -161,7 +161,7 @@ mod test {
         let ray = Ray::new(Vec3A::ONE, Vec3A::new(1.0, 1.0, 1.0));
         let mut chunk = Chunk::default();
         let chunk_coords = ChunkUnits(IVec3::ZERO);
-        let chunk_min = chunk_min(chunk_coords).into_inner();
+        let VoxelUnits(chunk_min) = chunk_min(chunk_coords);
 
         // Mark one voxel in the middle to prove that we can hit it and stop.
         chunk.palette_view_mut()[IVec3::new(7, 7, 7) - chunk_min] = 1;
