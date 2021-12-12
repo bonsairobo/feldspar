@@ -85,7 +85,9 @@ impl ChunkClipMap {
 
             if let Some((ptr, node)) = ptr.and_then(|p| self.octree.get_value(p).map(|n| (p, n))) {
                 if node.state().is_loading() && node.state().descendant_is_loading.none() {
-                    // All descendants have loaded, so this slot is ready to be loaded.
+                    // TODO: we might want to support saving/loading downsampled chunks
+
+                    // All descendants have loaded, so this slot is ready to be downsampled.
                     rx(level, coordinates);
 
                     // Leaving this commented, we are choosing not to count LOD > 0 against the budget. Downsampling is much
