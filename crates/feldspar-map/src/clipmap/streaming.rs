@@ -1,6 +1,6 @@
 use super::ChunkClipMap;
 use crate::glam::Vec3A;
-use crate::{Level, NodeLocation, Sphere};
+use crate::{Level, NodeLocation, Sphere, VoxelUnits};
 
 use float_ord::FloatOrd;
 use smallvec::SmallVec;
@@ -35,8 +35,8 @@ impl ChunkClipMap {
     pub fn new_nodes_intersecting_sphere(
         &self,
         config: StreamingConfig,
-        old_clip_sphere: Sphere,
-        new_clip_sphere: Sphere,
+        old_clip_sphere: VoxelUnits<Sphere>,
+        new_clip_sphere: VoxelUnits<Sphere>,
         mut rx: impl FnMut(NodeLocation),
     ) {
         // Note: exclude loading trees
@@ -45,12 +45,12 @@ impl ChunkClipMap {
 
     /// Searches for all of the nodes marked as "loading." It is up to the caller to subsequently write or delete the data in
     /// the loading node so that it gets marked as "loaded".
-    pub fn loading_nodes(&self, budget: usize, observer: Vec3A, mut rx: impl FnMut(NodeLocation)) {
+    pub fn loading_nodes(&self, budget: usize, observer: VoxelUnits<Vec3A>, mut rx: impl FnMut(NodeLocation)) {
         todo!()
     }
 
     /// Searches for nodes whose render detail should change.
-    pub fn render_updates(&self, budget: usize, observer: Vec3A, mut rx: impl FnMut(LodChange)) {
+    pub fn render_updates(&self, budget: usize, observer: VoxelUnits<Vec3A>, mut rx: impl FnMut(LodChange)) {
         todo!()
     }
 }
@@ -85,13 +85,13 @@ pub struct MergeChunks {
 #[derive(Clone, Copy)]
 struct ClosestNodeHeapElem {
     location: NodeLocation,
-    bounding_sphere: Sphere,
-    closest_dist_to_observer: f32,
+    bounding_sphere: VoxelUnits<Sphere>,
+    closest_dist_to_observer: VoxelUnits<f32>,
 }
 
 impl ClosestNodeHeapElem {
-    fn center_dist_to_observer(&self) -> f32 {
-        self.closest_dist_to_observer + self.bounding_sphere.radius
+    fn center_dist_to_observer(&self) -> VoxelUnits<f32> {
+        self.closest_dist_to_observer.combine(self.bounding_sphere, |d, s| d + s.radius)
     }
 }
 
@@ -104,16 +104,16 @@ impl Eq for ClosestNodeHeapElem {}
 
 impl PartialOrd for ClosestNodeHeapElem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        FloatOrd(self.closest_dist_to_observer)
-            .partial_cmp(&FloatOrd(other.closest_dist_to_observer))
+        self.closest_dist_to_observer.combine(other.closest_dist_to_observer, |d1, d2| FloatOrd(d1).partial_cmp(&FloatOrd(d2)))
+            .into_inner()
             .map(|o| o.reverse())
     }
 }
 
 impl Ord for ClosestNodeHeapElem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        FloatOrd(self.closest_dist_to_observer)
-            .cmp(&FloatOrd(other.closest_dist_to_observer))
+        self.closest_dist_to_observer.combine(other.closest_dist_to_observer, |d1, d2| FloatOrd(d1).cmp(&FloatOrd(d2)))
+            .into_inner()
             .reverse()
     }
 }

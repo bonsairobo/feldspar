@@ -1,10 +1,11 @@
-use crate::{chunk_extent_vec3a_from_min, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE};
+use crate::{chunk_min, chunk_extent_vec3a, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE, ChunkUnits};
 
 use grid_ray::GridRayIter3;
 use ilattice::glam::{IVec3, Vec3A};
 use ilattice::prelude::Extent;
 use ndshape::ConstShape;
 
+#[derive(Clone, Copy)]
 pub struct Ray {
     pub start: Vec3A,
     velocity: Vec3A,
@@ -52,22 +53,23 @@ impl Ray {
     /// Visit every voxel in `chunk` that intersects the ray. Return `false` to stop the traversal.
     pub fn cast_through_chunk(
         &self,
-        chunk_min: IVec3,
+        chunk_coords: ChunkUnits<IVec3>,
         chunk: &Chunk,
         mut visitor: impl FnMut(f32, IVec3, Sd8, PaletteId8) -> bool,
     ) {
-        let chunk_extent = chunk_extent_vec3a_from_min(chunk_min.as_vec3a());
-        if let Some([t_enter_chunk, t_exit_chunk]) = self.cast_at_extent(chunk_extent) {
+        let chunk_aabb = chunk_extent_vec3a(chunk_coords).into_inner();
+        if let Some([t_enter_chunk, t_exit_chunk]) = self.cast_at_extent(chunk_aabb) {
             // Nudge the start and end a little bit to be sure we stay in the chunk.
             let duration_inside_chunk = t_exit_chunk - t_enter_chunk;
             let nudge_duration = 0.000001 * duration_inside_chunk;
             let t_nudge_start = t_enter_chunk + nudge_duration;
             let nudge_start = self.position_at(t_nudge_start);
 
-            if !chunk_extent.contains(nudge_start) {
+            if !chunk_aabb.contains(nudge_start) {
                 return;
             }
 
+            let chunk_min = chunk_min(chunk_coords).into_inner();
             let nudge_t_max = t_exit_chunk - nudge_duration;
             let iter = GridRayIter3::new(nudge_start, self.velocity);
             for (t_enter, p) in iter {
@@ -158,13 +160,14 @@ mod test {
     fn cast_into_chunk_and_hit_voxel() {
         let ray = Ray::new(Vec3A::ONE, Vec3A::new(1.0, 1.0, 1.0));
         let mut chunk = Chunk::default();
-        let chunk_min = IVec3::new(1, 1, 1);
+        let chunk_coords = ChunkUnits(IVec3::ZERO);
+        let chunk_min = chunk_min(chunk_coords).into_inner();
 
         // Mark one voxel in the middle to prove that we can hit it and stop.
         chunk.palette_view_mut()[IVec3::new(7, 7, 7) - chunk_min] = 1;
 
         let mut visited_coords = Vec::new();
-        ray.cast_through_chunk(chunk_min, &chunk, |_t_enter, coords, sdf, palette_id| {
+        ray.cast_through_chunk(chunk_coords, &chunk, |_t_enter, coords, sdf, palette_id| {
             assert_eq!(sdf, AMBIENT_SD8);
             visited_coords.push(coords);
             palette_id == 0
@@ -173,6 +176,9 @@ mod test {
         assert_eq!(
             visited_coords.as_slice(),
             &[
+                IVec3::new(0, 0, 0),
+                IVec3::new(0, 0, 1),
+                IVec3::new(0, 1, 1),
                 IVec3::new(1, 1, 1),
                 IVec3::new(1, 1, 2),
                 IVec3::new(1, 2, 2),
@@ -200,14 +206,14 @@ mod test {
     fn cast_through_chunk() {
         let ray = Ray::new(Vec3A::new(-0.5, 0.5, 0.5), Vec3A::new(1.0, 0.0, 0.0));
         let chunk = Chunk::default();
-        let chunk_min = IVec3::ZERO;
+        let chunk_coords = ChunkUnits(IVec3::ZERO);
 
         let [t_chunk_enter, t_chunk_exit] = ray
-            .cast_at_extent(chunk_extent_vec3a_from_min(chunk_min.as_vec3a()))
+            .cast_at_extent(chunk_extent_vec3a(chunk_coords).into_inner())
             .unwrap();
 
         let mut visited_coords = Vec::new();
-        ray.cast_through_chunk(chunk_min, &chunk, |t_enter, coords, sdf, palette_id| {
+        ray.cast_through_chunk(chunk_coords, &chunk, |t_enter, coords, sdf, palette_id| {
             assert_eq!(sdf, AMBIENT_SD8);
             assert_eq!(palette_id, 0);
             assert!(t_enter >= t_chunk_enter);

@@ -66,6 +66,7 @@ mod ndview;
 mod palette;
 mod sampling;
 mod sdf;
+mod units;
 
 pub use allocator::*;
 pub use chunk::*;
@@ -76,6 +77,7 @@ pub use geometry::*;
 pub use ndview::*;
 pub use palette::*;
 pub use sdf::*;
+pub use units::*;
 
 #[cfg(feature = "bevy")]
 mod plugin;
