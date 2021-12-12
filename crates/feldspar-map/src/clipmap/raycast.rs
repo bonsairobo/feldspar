@@ -13,7 +13,7 @@ impl ChunkClipMap {
         let mut heap = BinaryHeap::new();
         for (root_ptr, root_coords) in self.octree.iter_roots() {
             let extent = chunk_extent_at_level_vec3a(root_ptr.level(), ChunkUnits(root_coords));
-            if let Some(time_window) = VoxelUnits::combine(ray, extent, |r, e| r.cast_at_extent(e)).into_inner() {
+            if let Some(time_window) = VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e)).into_inner() {
                 heap.push(RayTraceHeapElem {
                     ptr: root_ptr,
                     coords: root_coords,
@@ -39,7 +39,7 @@ impl ChunkClipMap {
                 |child_ptr, child_coords| {
                     is_leaf = false;
                     let extent = chunk_extent_at_level_vec3a(child_ptr.level(), ChunkUnits(child_coords));
-                    if let Some(time_window) = VoxelUnits::combine(ray, extent, |r, e| r.cast_at_extent(e)).into_inner() {
+                    if let Some(time_window) = VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e)).into_inner() {
                         if time_window[0] > earliest_entrance_time {
                             // Don't bother visiting children, they couldn't possibly have an earlier time if the parent
                             // doesn't.

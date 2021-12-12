@@ -91,7 +91,7 @@ struct ClosestNodeHeapElem {
 
 impl ClosestNodeHeapElem {
     fn center_dist_to_observer(&self) -> VoxelUnits<f32> {
-        VoxelUnits::combine(self.closest_dist_to_observer, self.bounding_sphere, |d, s| d + s.radius)
+        VoxelUnits::map2(self.closest_dist_to_observer, self.bounding_sphere, |d, s| d + s.radius)
     }
 }
 
@@ -104,7 +104,7 @@ impl Eq for ClosestNodeHeapElem {}
 
 impl PartialOrd for ClosestNodeHeapElem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        VoxelUnits::combine(
+        VoxelUnits::map2(
             self.closest_dist_to_observer,
             other.closest_dist_to_observer,
             |d1, d2| FloatOrd(d1).partial_cmp(&FloatOrd(d2))
@@ -116,7 +116,7 @@ impl PartialOrd for ClosestNodeHeapElem {
 
 impl Ord for ClosestNodeHeapElem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        VoxelUnits::combine(
+        VoxelUnits::map2(
             self.closest_dist_to_observer,
             other.closest_dist_to_observer,
             |d1, d2| FloatOrd(d1).cmp(&FloatOrd(d2))

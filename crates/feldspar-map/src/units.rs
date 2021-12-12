@@ -13,7 +13,7 @@ macro_rules! def_units {
                 $t(f(self.0))
             }
 
-            pub fn combine<S, R>(u1: Self, u2: $t<S>, mut f: impl FnMut(T, S) -> R) -> $t<R> {
+            pub fn map2<S, R>(u1: Self, u2: $t<S>, mut f: impl FnMut(T, S) -> R) -> $t<R> {
                 $t(f(u1.into_inner(), u2.into_inner()))
             }
         }

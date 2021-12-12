@@ -267,7 +267,7 @@ float pow5(float x) {
 }
 
 // distanceAttenuation is simply the square falloff of light intensity
-// combined with a smooth attenuation at the edge of the light radius
+// map2d with a smooth attenuation at the edge of the light radius
 //
 // light radius is a non-physical construct for efficiency purposes,
 // because otherwise every light affects every fragment in the scene

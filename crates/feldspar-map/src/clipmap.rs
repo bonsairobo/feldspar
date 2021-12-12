@@ -81,7 +81,7 @@ impl ChunkClipMap {
                         let chunk_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
                         let min_level_chunk_extent =
                             chunk_extent.map(|e| descendant_extent(ptr.level() - min_level, e));
-                        let intersecting = VoxelUnits::combine(
+                        let intersecting = VoxelUnits::map2(
                             min_level_chunk_extent,
                             min_level_extent,
                             |e1, e2| !e1.intersection(&e2).is_empty(),
@@ -114,7 +114,7 @@ impl ChunkClipMap {
         // Recurse on each tree.
         for root_coords in root_level_extent.into_inner().iter3() {
             let root_sphere = chunk_bounding_sphere(root_level, ChunkUnits(root_coords));
-            if !VoxelUnits::combine(lod0_sphere, root_sphere, |s1, s2| s1.intersects(&s2)).into_inner() {
+            if !VoxelUnits::map2(lod0_sphere, root_sphere, |s1, s2| s1.intersects(&s2)).into_inner() {
                 continue;
             }
 
@@ -131,7 +131,7 @@ impl ChunkClipMap {
                     |ptr, coords, state| {
                         let coords = ChunkUnits(coords);
                         let chunk_sphere = chunk_bounding_sphere(ptr.level(), coords);
-                        if VoxelUnits::combine(chunk_sphere, lod0_sphere, |s1, s2| s1.intersects(&s2)).into_inner() {
+                        if VoxelUnits::map2(chunk_sphere, lod0_sphere, |s1, s2| s1.intersects(&s2)).into_inner() {
                             filler(ptr, coords, state)
                         } else {
                             FillCommand::SkipDescendants
@@ -152,14 +152,14 @@ impl ChunkClipMap {
         let root_level = self.octree.root_level();
         for (root_ptr, root_coords) in self.octree.iter_roots() {
             let root_extent = chunk_extent_at_level_ivec3(root_level, ChunkUnits(root_coords));
-            if VoxelUnits::combine(extent, root_extent, |e1, e2| e1.intersection(&e2).is_empty()).into_inner() {
+            if VoxelUnits::map2(extent, root_extent, |e1, e2| e1.intersection(&e2).is_empty()).into_inner() {
                 continue;
             }
             self.octree
                 .visit_tree_depth_first(root_ptr, root_coords, min_level, |ptr, coords| {
                     let coords = ChunkUnits(coords);
                     let this_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
-                    if VoxelUnits::combine(this_extent, extent, |e1, e2| e1.intersection(&e2).is_empty()).into_inner() {
+                    if VoxelUnits::map2(this_extent, extent, |e1, e2| e1.intersection(&e2).is_empty()).into_inner() {
                         VisitCommand::SkipDescendants
                     } else {
                         visitor(ptr, coords);
