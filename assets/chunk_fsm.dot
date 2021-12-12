@@ -1,0 +1,26 @@
+digraph G {
+  evicted -> loading [ label = "enter clip sphere" fontsize="10" ];
+
+  loading -> empty_clean [ label = "finished" fontsize="10" ];
+  loading -> compressed_clean [ label = "finished" fontsize="10" ];
+
+  loading -> empty_dirty [ label = "delete" fontsize="10" ];
+  loading -> decompressed_dirty [ label = "insert" fontsize="10" ];
+
+  empty_clean -> decompressed_dirty [ label = "insert" fontsize="10" ];
+  decompressed_clean -> decompressed_dirty [ label = "insert" fontsize="10" ];
+  compressed_clean -> decompressed_dirty [ label = "insert" fontsize="10" ];
+  compressed_clean -> empty_dirty [ label = "delete" fontsize="10" ];
+  empty_dirty -> decompressed_dirty [ label = "insert" fontsize="10" ];
+  decompressed_dirty -> decompressed_dirty [ label = "insert" fontsize="10" ];
+  decompressed_dirty -> empty_dirty [ label = "delete" fontsize="10" ];
+
+  decompressed_clean -> evicted [ label = "exit clip sphere" fontsize="10" ];
+  compressed_clean -> evicted [ label = "exit clip sphere" fontsize="10" ];
+
+  empty_dirty -> empty_clean [ label = "persist" fontsize="10" ];
+  decompressed_dirty -> decompressed_clean [ label = "persist" fontsize="10" ];
+
+  decompressed_clean -> compressed_clean [ label = "compress" fontsize="10" ];
+  compressed_clean -> decompressed_clean [ label = "read" fontsize="10" ];
+}

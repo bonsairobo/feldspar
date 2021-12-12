@@ -48,6 +48,10 @@
 //! - finding infrequently used chunks that should be compressed
 //! - finding distant chunks that can be persisted and evicted from memory
 //!
+//! ## Chunk Slot State Machine (AKA Chunk State Slot Machine)
+//!
+//! ![chunk_fsm](/assets/chunk_fsm.png)
+//!
 //! # Bevy Plugin
 //!
 //! When building this crate with the `"bevy"` feature enabled, you get access to the [`MapPlugin`]. This Bevy `Plugin`
