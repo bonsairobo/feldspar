@@ -11,11 +11,13 @@ either = "1.6"
 float-ord = "0.3"
 grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", branch = "main" }
 grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main" }
-ilattice = { git = "https://github.com/bonsairobo/ilattice-rs", branch = "main" }
+ilattice = { git = "https://github.com/bonsairobo/ilattice-rs", branch = "main", features = ["morton-encoding", "rkyv"] }
 lz4_flex = "0.9"
 ndshape = "0.2"
 parking_lot = "0.11"
+rkyv = "0.7"
 slab = "0.4"
+sled = "0.34"
 smallvec = "1.7"
 static_assertions = "1.1"
 

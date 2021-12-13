@@ -44,8 +44,8 @@ pub struct NodeSlot {
 }
 
 impl ChunkClipMap {
-    /// Searches for all of the nodes marked as "loading." It is up to the caller to subsequently write or delete the data in
-    /// the loading node so that it gets marked as "loaded".
+    /// Searches for up to `budget` of the nodes marked as "loading." It is up to the caller to subsequently write or delete the
+    /// data in the loading node so that it gets marked as "loaded".
     pub fn loading_nodes(
         &self,
         budget: usize,

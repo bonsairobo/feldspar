@@ -27,12 +27,10 @@
 //!
 //! # Database
 //!
-//! The [`MapDatabase`] provides versioned, persistent storage for all map data, mostly [`Chunk`]s. Each non-current version
-//! only stores the deltas required to reach that version from a neighboring version. By the structure of the version tree and
-//! transitivity, every version is reachable from the current one. Transitioning between versions can be done by either:
-//!
-//! - creating a new version by flushing outstanding edits
-//! - forcing a transition along the full path from the current version to the destination version
+//! The [`MapDb`] provides versioned, persistent storage for all map data, mostly [`Chunk`]s. One version is known as the *bulk*
+//! version, where most of the data actually lives. The other versions only store modifications and pointers to the parent
+//! version being modified. By the structure of the version tree and transitivity, every version is reachable from the current
+//! one.
 //!
 //! # Multiresolution Streaming
 //!
