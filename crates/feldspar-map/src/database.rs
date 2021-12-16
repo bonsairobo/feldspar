@@ -95,7 +95,7 @@ pub struct MapDb {
 
 impl MapDb {
     /// Opens the [`sled::Tree`]s that contain our database, initializing them with an empty map if they didn't already exist.
-    pub fn open(db_name: &str, cache_capacity_bytes: u64) -> Result<Self, TransactionError> {
+    pub fn open(db_name: &str, cache_capacity_bytes: usize) -> Result<Self, TransactionError> {
         let db = sled::Config::default()
             .cache_capacity(cache_capacity_bytes)
             .path(db_name)
