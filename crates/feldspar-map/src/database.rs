@@ -4,8 +4,7 @@ mod change_tree;
 mod meta_tree;
 
 use bulk_tree::BulkTree;
-use change_encoder::EncodedChanges;
-use change_tree::ChangeTree;
+use change_tree::{ArchivedVersionChanges, ChangeTree};
 use meta_tree::MetaTree;
 
 use crate::glam::IVec3;
@@ -19,10 +18,18 @@ use std::collections::BTreeMap;
 
 use self::meta_tree::MapDbMetadata;
 
-#[derive(Archive, Clone, Copy, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize)]
+#[derive(
+    Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize,
+)]
 #[archive_attr(derive(Eq, PartialEq, PartialOrd, Ord))]
 pub struct Version {
-    number: u64,
+    pub number: u64,
+}
+
+impl Version {
+    pub fn new(number: u64) -> Self {
+        Self { number }
+    }
 }
 
 #[derive(Archive, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
@@ -166,7 +173,10 @@ impl MapDb {
         todo!()
     }
 
-    pub fn create_version(&self, changes: EncodedChanges) -> Result<Self, TransactionError> {
+    pub fn create_version(
+        &self,
+        changes: ArchivedVersionChanges,
+    ) -> Result<Self, TransactionError> {
         todo!()
     }
 }
