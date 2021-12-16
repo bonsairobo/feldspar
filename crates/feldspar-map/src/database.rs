@@ -5,15 +5,17 @@ mod chunk_key;
 mod meta_tree;
 
 use bulk_tree::BulkTree;
-use change_tree::{ChangeTree, VersionChanges};
+use change_tree::{create_version, ChangeTree, VersionChanges};
 use chunk_key::ChunkDbKey;
-use meta_tree::MetaTree;
+use meta_tree::{update_current_version, MetaTree};
 
 use rkyv::{Archive, Deserialize, Serialize};
-use sled::transaction::TransactionError;
+use sled::transaction::{TransactionError, Transactional};
 use std::collections::BTreeMap;
 
 use self::meta_tree::MapDbMetadata;
+
+pub const FIRST_VERSION: Version = Version::new(0);
 
 #[derive(
     Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize,
@@ -119,11 +121,15 @@ impl MapDb {
 
     /// Returns the [`Version`] that is seen by readers. Writer also make changes using this version as the parent.
     pub fn cached_meta(&self) -> &MapDbMetadata {
-        self.meta_tree.cached_meta()
+        &self.meta_tree.cached_meta
     }
 
     pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
-        self.change_tree.create_version(changes)
+        (&self.change_tree.tree, &self.meta_tree.tree).transaction(|(change_txn, meta_txn)| {
+            let new_version = create_version(change_txn, changes)?;
+            update_current_version(meta_txn, new_version);
+            Ok(new_version)
+        })
     }
 
     /// Sets the current version to `target_version`.

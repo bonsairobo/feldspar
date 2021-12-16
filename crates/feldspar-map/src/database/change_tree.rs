@@ -3,11 +3,9 @@ use crate::CompressedChunk;
 
 use rkyv::ser::{serializers::AllocSerializer, Serializer};
 use rkyv::{archived_root, Archive, Serialize};
-use sled::transaction::TransactionError;
-use sled::{IVec, Tree};
+use sled::transaction::{ConflictableTransactionError, TransactionError};
+use sled::{transaction::TransactionalTree, IVec, Tree};
 use std::collections::BTreeMap;
-
-pub const FIRST_VERSION: Version = Version::new(0);
 
 /// ## Perf Note
 ///
@@ -37,7 +35,7 @@ impl VersionChanges {
 
 /// A mapping from [`Version`] to [`VersionChanges`].
 pub struct ChangeTree {
-    tree: Tree,
+    pub(super) tree: Tree,
 }
 
 impl ChangeTree {
@@ -48,14 +46,9 @@ impl ChangeTree {
 
     /// Non-blocking write.
     pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
-        let mut serializer = AllocSerializer::<8192>::default();
-        serializer.serialize_value(changes).unwrap();
-        let changes_bytes = serializer.into_serializer().into_inner();
-
         self.tree.transaction(|txn| {
-            let new_version = Version::new(txn.generate_id()?);
-            txn.insert(&new_version.into_sled_key(), changes_bytes.as_ref())?;
-            Ok(new_version)
+            let version = create_version(txn, changes)?;
+            Ok(version)
         })
     }
 
@@ -67,6 +60,20 @@ impl ChangeTree {
         let bytes = self.tree.get(&version.into_sled_key())?;
         Ok(bytes.map(|b| OwnedArchivedVersionChanges::new(b)))
     }
+}
+
+/// Non-blocking write.
+pub fn create_version(
+    txn: &TransactionalTree,
+    changes: &VersionChanges,
+) -> Result<Version, ConflictableTransactionError> {
+    let mut serializer = AllocSerializer::<8192>::default();
+    serializer.serialize_value(changes).unwrap();
+    let changes_bytes = serializer.into_serializer().into_inner();
+
+    let new_version = Version::new(txn.generate_id()?);
+    txn.insert(&new_version.into_sled_key(), changes_bytes.as_ref())?;
+    Ok(new_version)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -96,7 +103,7 @@ impl AsRef<ArchivedVersionChanges> for OwnedArchivedVersionChanges {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ArchivedVersion;
+    use crate::{ArchivedVersion, FIRST_VERSION};
 
     #[test]
     fn open_create_reopen_and_get() {
