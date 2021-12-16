@@ -5,7 +5,7 @@ use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
-use rkyv::Archive;
+use rkyv::{Archive, Serialize};
 use static_assertions::const_assert_eq;
 use std::io;
 use std::mem;
@@ -102,7 +102,7 @@ impl Chunk {
     }
 }
 
-#[derive(Archive, Clone, Debug, Eq, PartialEq)]
+#[derive(Archive, Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct CompressedChunk {
     pub bytes: Box<[u8]>,
 }
@@ -135,7 +135,7 @@ impl CompressedChunk {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{VoxelUnits, chunk_extent_from_min_ivec3};
+    use crate::{chunk_extent_from_min_ivec3, VoxelUnits};
 
     #[test]
     fn compress_default_chunk() {

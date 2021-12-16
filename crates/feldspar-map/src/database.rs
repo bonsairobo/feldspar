@@ -1,17 +1,14 @@
 mod bulk_tree;
 mod change_encoder;
 mod change_tree;
+mod chunk_key;
 mod meta_tree;
 
 use bulk_tree::BulkTree;
-use change_tree::{ArchivedVersionChanges, ChangeTree};
+use change_tree::{ChangeTree, VersionChanges};
+use chunk_key::ChunkDbKey;
 use meta_tree::MetaTree;
 
-use crate::glam::IVec3;
-use crate::Level;
-
-use core::ops::RangeInclusive;
-use ilattice::prelude::{Bounded, Extent, Morton3i32};
 use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::TransactionError;
 use std::collections::BTreeMap;
@@ -30,56 +27,13 @@ impl Version {
     pub fn new(number: u64) -> Self {
         Self { number }
     }
-}
 
-#[derive(Archive, Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
-#[archive_attr(derive(Eq, PartialEq, PartialOrd, Ord))]
-pub struct ChunkDbKey {
-    level: Level,
-    morton: Morton3i32,
-}
-
-impl ChunkDbKey {
-    pub fn new(level: Level, morton: Morton3i32) -> Self {
-        Self { level, morton }
-    }
-
-    /// We implement this manually (without rkyv) so we have control over the [`Ord`] as interpreted by [`sled`].
-    ///
-    /// 13 bytes total per key, 1 for LOD and 12 for the morton code. Although a [`Morton3i32`] uses a u128, it only actually
-    /// uses the least significant 96 bits (12 bytes).
-    pub fn to_be_bytes(&self) -> [u8; 13] {
-        let mut bytes = [0; 13];
-        bytes[0] = self.level;
-        bytes[1..].copy_from_slice(&self.morton.0.to_be_bytes()[4..]);
-        bytes
-    }
-
-    pub fn from_be_bytes(bytes: &[u8]) -> Self {
-        let level = bytes[0];
-        // The most significant 4 bytes of the u128 are not used.
-        let mut morton_bytes = [0; 16];
-        morton_bytes[4..16].copy_from_slice(&bytes[1..]);
-        let morton_int = u128::from_be_bytes(morton_bytes);
-        Self::new(level, Morton3i32(morton_int))
-    }
-
-    pub fn extent_range(level: u8, extent: Extent<IVec3>) -> RangeInclusive<Self> {
-        let min_morton = Morton3i32::from(extent.minimum);
-        let max_morton = Morton3i32::from(extent.max());
-        Self::new(level, min_morton)..=Self::new(level, max_morton)
-    }
-
-    pub fn min_key(level: u8) -> Self {
-        Self::new(level, Morton3i32::from(IVec3::MIN))
-    }
-
-    pub fn max_key(level: u8) -> Self {
-        Self::new(level, Morton3i32::from(IVec3::MAX))
+    pub fn into_sled_key(self) -> [u8; 8] {
+        self.number.to_be_bytes()
     }
 }
 
-#[derive(Archive)]
+#[derive(Archive, Serialize)]
 pub enum Change<T> {
     Insert(T),
     Remove,
@@ -118,6 +72,8 @@ impl<T> Change<T> {
 /// When changing the current version, the cached mapping from [`ChunkDbKey`] to [`Version`] must be updated accordingly so that
 /// readers know where to find data.
 pub struct MapDb {
+    db: sled::Db,
+
     /// A map from `str` to arbitrary [`Archive`] data type. Currently contains:
     ///
     /// - "meta" -> [`MapDbMetadata`]
@@ -139,13 +95,17 @@ pub struct MapDb {
 
 impl MapDb {
     /// Opens the [`sled::Tree`]s that contain our database, initializing them with an empty map if they didn't already exist.
-    pub fn open(db_name: &str) -> Result<Self, TransactionError> {
-        let db = sled::Config::default().path(db_name).open()?;
+    pub fn open(db_name: &str, cache_capacity_bytes: u64) -> Result<Self, TransactionError> {
+        let db = sled::Config::default()
+            .cache_capacity(cache_capacity_bytes)
+            .path(db_name)
+            .open()?;
         let meta_tree = MetaTree::open(db_name, &db)?;
         let bulk_tree = BulkTree::open(db_name, &db)?;
         let change_tree = ChangeTree::open(db_name, &db)?;
 
         Ok(Self {
+            db,
             meta_tree,
             bulk_tree,
             change_tree,
@@ -153,9 +113,17 @@ impl MapDb {
         })
     }
 
+    pub async fn flush(&self) -> sled::Result<usize> {
+        self.db.flush_async().await
+    }
+
     /// Returns the [`Version`] that is seen by readers. Writer also make changes using this version as the parent.
     pub fn cached_meta(&self) -> &MapDbMetadata {
         self.meta_tree.cached_meta()
+    }
+
+    pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
+        self.change_tree.create_version(changes)
     }
 
     /// Sets the current version to `target_version`.
@@ -170,13 +138,6 @@ impl MapDb {
     ///
     /// On successful completion, the bulk version will be set to the current version.
     pub fn rebulk(&self) {
-        todo!()
-    }
-
-    pub fn create_version(
-        &self,
-        changes: ArchivedVersionChanges,
-    ) -> Result<Self, TransactionError> {
         todo!()
     }
 }

@@ -1,12 +1,17 @@
 use super::{Change, ChunkDbKey, Version};
 use crate::CompressedChunk;
 
-use rkyv::Archive;
+use rkyv::ser::{serializers::AllocSerializer, Serializer};
+use rkyv::{Archive, Serialize};
 use sled::transaction::TransactionError;
 use sled::Tree;
 use std::collections::BTreeMap;
 
-#[derive(Archive)]
+/// ## Perf Note
+///
+/// Readers will need to fetch the entire [`ArchivedVersionChanges`] at a time from `sled`, but ideally it will reside in cache
+/// until those changes are rebulked.
+#[derive(Archive, Serialize)]
 pub struct VersionChanges {
     /// The version immediately before this one.
     pub parent_version: Version,
@@ -27,7 +32,15 @@ impl ChangeTree {
         Ok(Self { tree })
     }
 
-    pub async fn write_new_version(&self) {
-        todo!()
+    pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
+        let mut serializer = AllocSerializer::<8192>::default();
+        serializer.serialize_value(changes).unwrap();
+        let changes_bytes = serializer.into_serializer().into_inner();
+
+        self.tree.transaction(|txn| {
+            let new_version = Version::new(txn.generate_id()?);
+            txn.insert(&new_version.into_sled_key(), changes_bytes.as_ref())?;
+            Ok(new_version)
+        })
     }
 }
