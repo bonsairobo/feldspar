@@ -5,7 +5,7 @@
 //! # Scope
 //!
 //! This is not intended to be a highly generic voxel library. Namely it does not intend to support generic voxel data types.
-//! Rather it has a highly opinionated data model to achieve specific goals like:
+//! Rather it has an opinionated data model to achieve specific goals like:
 //!
 //! - [SDF](https://en.wikipedia.org/wiki/Signed_distance_function)-based terrain for:
 //!   - [CSG (constructive solid geometry)](https://en.wikipedia.org/wiki/Constructive_solid_geometry)

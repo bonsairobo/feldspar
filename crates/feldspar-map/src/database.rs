@@ -18,13 +18,13 @@ use self::meta_tree::MapDbMetadata;
 #[derive(
     Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize,
 )]
-#[archive_attr(derive(Eq, PartialEq, PartialOrd, Ord))]
+#[archive_attr(derive(Debug, Eq, PartialEq, PartialOrd, Ord))]
 pub struct Version {
     pub number: u64,
 }
 
 impl Version {
-    pub fn new(number: u64) -> Self {
+    pub const fn new(number: u64) -> Self {
         Self { number }
     }
 
