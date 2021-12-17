@@ -3,8 +3,8 @@ use crate::CompressedChunk;
 
 use rkyv::ser::{serializers::AllocSerializer, Serializer};
 use rkyv::{archived_root, Archive, Serialize};
-use sled::transaction::{ConflictableTransactionError, TransactionError};
-use sled::{transaction::TransactionalTree, IVec, Tree};
+use sled::transaction::{ConflictableTransactionError, TransactionalTree};
+use sled::{IVec, Tree};
 use std::collections::BTreeMap;
 
 /// ## Perf Note
@@ -33,33 +33,8 @@ impl VersionChanges {
     }
 }
 
-/// A mapping from [`Version`] to [`VersionChanges`].
-pub struct ChangeTree {
-    pub(super) tree: Tree,
-}
-
-impl ChangeTree {
-    pub fn open(db_name: &str, db: &sled::Db) -> Result<Self, TransactionError> {
-        let tree = db.open_tree(format!("{}-changes", db_name))?;
-        Ok(Self { tree })
-    }
-
-    /// Non-blocking write.
-    pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
-        self.tree.transaction(|txn| {
-            let version = create_version(txn, changes)?;
-            Ok(version)
-        })
-    }
-
-    /// This may need to block on IO and should probably run in an async task.
-    pub fn get_archived_version(
-        &self,
-        version: Version,
-    ) -> Result<Option<OwnedArchivedVersionChanges>, TransactionError> {
-        let bytes = self.tree.get(&version.into_sled_key())?;
-        Ok(bytes.map(OwnedArchivedVersionChanges::new))
-    }
+pub fn open_change_tree(db_name: &str, db: &sled::Db) -> sled::Result<Tree> {
+    db.open_tree(format!("{}-changes", db_name))
 }
 
 /// Non-blocking write.
@@ -74,6 +49,15 @@ pub fn create_version(
     let new_version = Version::new(txn.generate_id()?);
     txn.insert(&new_version.into_sled_key(), changes_bytes.as_ref())?;
     Ok(new_version)
+}
+
+/// This may need to block on IO and should probably run in an async task.
+pub fn get_archived_version(
+    txn: &TransactionalTree,
+    version: Version,
+) -> Result<Option<OwnedArchivedVersionChanges>, ConflictableTransactionError> {
+    let bytes = txn.get(&version.into_sled_key())?;
+    Ok(bytes.map(OwnedArchivedVersionChanges::new))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -105,22 +89,29 @@ mod tests {
     use super::*;
     use crate::{ArchivedVersion, FIRST_VERSION};
 
+    use sled::transaction::TransactionError;
+
     #[test]
-    fn open_create_reopen_and_get() {
+    fn open_create_and_get() {
         let db = sled::Config::default().temporary(true).open().unwrap();
-        let tree = ChangeTree::open("mymap", &db).unwrap();
+        let tree = db.open_tree("mymap-changes").unwrap();
 
-        assert_eq!(tree.get_archived_version(FIRST_VERSION).unwrap(), None);
+        let result: Result<(), TransactionError> = tree.transaction(|txn| {
+            assert_eq!(get_archived_version(txn, FIRST_VERSION).unwrap(), None);
 
-        let changes = VersionChanges::new(FIRST_VERSION, BTreeMap::new());
-        tree.create_version(&changes).unwrap();
+            let changes = VersionChanges::new(FIRST_VERSION, BTreeMap::new());
+            create_version(txn, &changes).unwrap();
 
-        let owned_archive = tree.get_archived_version(Version::new(0)).unwrap().unwrap();
-        assert_eq!(
-            owned_archive.as_ref().parent_version,
-            ArchivedVersion {
-                number: FIRST_VERSION.number
-            }
-        );
+            let owned_archive = get_archived_version(txn, Version::new(0)).unwrap().unwrap();
+            assert_eq!(
+                owned_archive.as_ref().parent_version,
+                ArchivedVersion {
+                    number: FIRST_VERSION.number
+                }
+            );
+
+            Ok(())
+        });
+        result.unwrap();
     }
 }

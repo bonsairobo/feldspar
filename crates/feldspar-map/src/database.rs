@@ -7,11 +7,12 @@ mod meta_tree;
 pub use chunk_key::ChunkDbKey;
 
 use bulk_tree::BulkTree;
-use change_tree::{create_version, ChangeTree, VersionChanges};
+use change_tree::{create_version, get_archived_version, open_change_tree, VersionChanges};
 use meta_tree::{update_current_version, MetaTree};
 
 use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::{TransactionError, Transactional};
+use sled::Tree;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -79,7 +80,7 @@ pub struct MapDb {
     db: sled::Db,
     meta_tree: MetaTree,
     bulk_tree: BulkTree,
-    change_tree: ChangeTree,
+    change_tree: Tree,
 
     /// A cache of the mapping from [`ChunkDbKey`] to [`Version`] for all keys that have been edited since the last version
     /// migration.
@@ -102,7 +103,7 @@ impl MapDb {
             .open()?;
         let meta_tree = MetaTree::open(db_name, &db)?;
         let bulk_tree = BulkTree::open(db_name, &db)?;
-        let change_tree = ChangeTree::open(db_name, &db)?;
+        let change_tree = open_change_tree(db_name, &db)?;
 
         Ok(Self {
             db,
@@ -123,7 +124,7 @@ impl MapDb {
     }
 
     pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
-        (&self.change_tree.tree, &self.meta_tree.tree).transaction(|(change_txn, meta_txn)| {
+        (&self.change_tree, &self.meta_tree.tree).transaction(|(change_txn, meta_txn)| {
             let new_version = create_version(change_txn, changes)?;
             update_current_version(meta_txn, new_version)?;
             Ok(new_version)
