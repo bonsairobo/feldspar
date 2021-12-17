@@ -1,24 +1,22 @@
-mod bulk_tree;
+mod backup_tree;
 mod change_encoder;
-mod change_tree;
 mod chunk_key;
 mod meta_tree;
+mod version_tree;
+mod working_tree;
 
 pub use chunk_key::ChunkDbKey;
 
-use bulk_tree::BulkTree;
-use change_tree::{create_version, get_archived_version, open_change_tree, VersionChanges};
-use meta_tree::{update_current_version, MetaTree};
+use backup_tree::{archive_parent_version, open_backup_tree, BackupKeyCache};
+use meta_tree::open_meta_tree;
+use version_tree::{create_version, get_archived_version, open_version_tree, VersionChanges};
+use working_tree::open_working_tree;
 
 use rkyv::{Archive, Deserialize, Serialize};
-use sled::transaction::{TransactionError, Transactional};
+use sled::transaction::TransactionError;
 use sled::Tree;
-use std::collections::BTreeMap;
-use std::path::Path;
 
 use self::meta_tree::MapDbMetadata;
-
-pub const FIRST_VERSION: Version = Version::new(0);
 
 #[derive(
     Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize,
@@ -33,12 +31,12 @@ impl Version {
         Self { number }
     }
 
-    pub fn into_sled_key(self) -> [u8; 8] {
+    pub const fn into_sled_key(self) -> [u8; 8] {
         self.number.to_be_bytes()
     }
 }
 
-#[derive(Archive, Serialize)]
+#[derive(Archive, Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum Change<T> {
     Insert(T),
     Remove,
@@ -53,96 +51,89 @@ impl<T> Change<T> {
     }
 }
 
-/// # Map Database Model
+/// # Map Database
 ///
 /// This database is effectively the backing store for a [`ChunkClipMap`](crate::ChunkClipMap). It supports CRUD operations on
 /// [`CompressedChunk`]s as well as a versioned log of changes.
 ///
 /// ## Implementation
 ///
-/// All data is stored in [`sled::Tree`]s. One tree is used for the *bulk* [`Version`] of the map, and it stores most of the
-/// [`CompressedChunk`] data that is relevant in the *current* version. The remainder of the data relevant to the current
-/// version is found in a separate tree which stores the [`VersionChanges`] of all versions. All new changes are written
-/// out-of-place in a new [`VersionChanges`] entry "ahead" of the bulk version.
+/// All data is stored in three [`sled::Tree`]s.
 ///
-/// ### Version Migration and Re-Bulking
+/// ### Working Tree
 ///
-/// While the bulk version differs from the current version, readers will be forced to consult a cached mapping from
-/// [`ChunkDbKey`] to [`Version`] so that they can find the [`VersionChanges`] where the data lives.
+/// One tree is used for the *working* [`Version`] of the map, and it stores all of the
+/// [`CompressedChunk`](crate::CompressedChunk) data for the working version. All new changes are written to this tree.
 ///
-/// In order to change the bulk version to match the current version, a sequence of [`VersionChanges`] must be applied to the
-/// bulk [`sled::Tree`], and those changes are replaced by their *inverses* so that the bulk tree can also be merged in the
-/// opposite direction. This process is referred to as *re-bulking*.
+/// ### Backup Tree
 ///
-/// When changing the current version, the cached mapping from [`ChunkDbKey`] to [`Version`] must be updated accordingly so that
-/// readers know where to find data.
+/// As new changes are written, the old values are moved into the "backup tree." The backup tree is just a persistent buffer
+/// that eventually gets archived when the working version is cut.
+///
+/// ### Version Tree
+///
+/// Archived versions get an entry in the "version tree." This stores an actual tree structure where each node has a parent
+/// version (except for the root version). To "revert" to a parent version, all of the backed up values must be re-applied in
+/// reverse order, while the corresponding newer values are archived. By transitivity, any archived version can be reached from
+/// the current working version.
 pub struct MapDb {
-    db: sled::Db,
-    meta_tree: MetaTree,
-    bulk_tree: BulkTree,
-    change_tree: Tree,
+    meta_tree: Tree,
+    working_tree: Tree,
+    backup_tree: Tree,
+    version_tree: Tree,
 
-    /// A cache of the mapping from [`ChunkDbKey`] to [`Version`] for all keys that have been edited since the last version
-    /// migration.
-    ///
-    /// If a DB reader does not find their key in this cache, then the current version for that key could only live in the
-    /// `bulk_tree`. Otherwise the data lives in a [`VersionChanges`] found in the `change_tree`.
-    key_version_cache: BTreeMap<ChunkDbKey, Version>,
+    /// HACK: We only have this type to work around sled's lack of transactional iteration. When archiving a version, we iterate
+    /// over this set of keys and put the entries into the archive.
+    backup_key_cache: BackupKeyCache,
+    // Zero-copy isn't super important for this tiny struct, so we just copy it for convenience.
+    cached_meta: MapDbMetadata,
 }
 
 impl MapDb {
-    /// Opens the [`sled::Tree`]s that contain our database, initializing them with an empty map if they didn't already exist.
-    pub fn open<P: AsRef<Path>>(
-        db_path: P,
-        db_name: &str,
-        cache_capacity_bytes: usize,
-    ) -> Result<Self, TransactionError> {
-        let db = sled::Config::default()
-            .cache_capacity(cache_capacity_bytes)
-            .path(db_path)
-            .open()?;
-        let meta_tree = MetaTree::open(db_name, &db)?;
-        let bulk_tree = BulkTree::open(db_name, &db)?;
-        let change_tree = open_change_tree(db_name, &db)?;
+    /// Opens the database. On first open, a single working version will be created with no parent version.
+    pub fn open(db: &sled::Db, db_name: &str) -> Result<Self, TransactionError> {
+        let (meta_tree, cached_meta) = open_meta_tree(db_name, db)?;
+        let version_tree = open_version_tree(db_name, db)?;
+        let (backup_tree, backup_key_cache) = open_backup_tree(db_name, db)?;
+        let working_tree = open_working_tree(db_name, db)?;
 
         Ok(Self {
-            db,
             meta_tree,
-            bulk_tree,
-            change_tree,
-            key_version_cache: Default::default(),
+            working_tree,
+            backup_tree,
+            version_tree,
+            backup_key_cache,
+            cached_meta,
         })
     }
 
-    pub async fn flush(&self) -> sled::Result<usize> {
-        self.db.flush_async().await
-    }
-
-    /// Returns the [`Version`] that is seen by readers. Writer also make changes using this version as the parent.
     pub fn cached_meta(&self) -> &MapDbMetadata {
-        &self.meta_tree.cached_meta
+        &self.cached_meta
     }
 
-    pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
-        (&self.change_tree, &self.meta_tree.tree).transaction(|(change_txn, meta_txn)| {
-            let new_version = create_version(change_txn, changes)?;
-            update_current_version(meta_txn, new_version)?;
-            Ok(new_version)
-        })
-    }
-
-    /// Sets the current version to `target_version`.
-    ///
-    /// After successful completion, readers will see all data at `target_version` and writers will create new
-    /// [`VersionChanges`] entries parented by `target_version`.
-    pub fn migrate_current_version(&self, target_version: Version) {
+    /// Archives the backup tree entries into a [`VersionChanges`] that gets serialized and stored in the version archive tree
+    /// with the current working [`Version`]. A new working version is generated.
+    pub fn cut_working_version(&mut self) -> Result<(), TransactionError> {
         todo!()
     }
 
-    /// Applies all changes required to migrate the bulk tree from the bulk version to the current version.
-    ///
-    /// On successful completion, the bulk version will be set to the current version.
-    pub fn rebulk(&self) {
+    /// Sets the parent version to `parent_version` and generates a new (empty) working child version.
+    pub fn branch_from_version(&self, parent_version: Version) {
         todo!()
     }
+}
+
+// ████████╗███████╗███████╗████████╗
+// ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
+//    ██║   █████╗  ███████╗   ██║
+//    ██║   ██╔══╝  ╚════██║   ██║
+//    ██║   ███████╗███████║   ██║
+//    ╚═╝   ╚══════╝╚══════╝   ╚═╝
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::glam::IVec3;
+    use crate::Chunk;
+    use std::collections::BTreeMap;
 }

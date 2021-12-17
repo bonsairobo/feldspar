@@ -5,8 +5,8 @@ use core::ops::RangeInclusive;
 use ilattice::prelude::{Bounded, Extent, Morton3i32};
 use rkyv::{Archive, Serialize};
 
-#[derive(Archive, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Serialize)]
-#[archive_attr(derive(Eq, PartialEq, PartialOrd, Ord))]
+#[derive(Archive, Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
+#[archive_attr(derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord))]
 pub struct ChunkDbKey {
     level: Level,
     morton: Morton3i32,
