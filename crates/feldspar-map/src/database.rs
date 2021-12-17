@@ -125,7 +125,7 @@ impl MapDb {
     pub fn create_version(&self, changes: &VersionChanges) -> Result<Version, TransactionError> {
         (&self.change_tree.tree, &self.meta_tree.tree).transaction(|(change_txn, meta_txn)| {
             let new_version = create_version(change_txn, changes)?;
-            update_current_version(meta_txn, new_version);
+            update_current_version(meta_txn, new_version)?;
             Ok(new_version)
         })
     }

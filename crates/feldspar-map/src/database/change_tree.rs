@@ -58,7 +58,7 @@ impl ChangeTree {
         version: Version,
     ) -> Result<Option<OwnedArchivedVersionChanges>, TransactionError> {
         let bytes = self.tree.get(&version.into_sled_key())?;
-        Ok(bytes.map(|b| OwnedArchivedVersionChanges::new(b)))
+        Ok(bytes.map(OwnedArchivedVersionChanges::new))
     }
 }
 
@@ -113,7 +113,7 @@ mod tests {
         assert_eq!(tree.get_archived_version(FIRST_VERSION).unwrap(), None);
 
         let changes = VersionChanges::new(FIRST_VERSION, BTreeMap::new());
-        tree.create_version(&changes);
+        tree.create_version(&changes).unwrap();
 
         let owned_archive = tree.get_archived_version(Version::new(0)).unwrap().unwrap();
         assert_eq!(

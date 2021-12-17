@@ -162,22 +162,22 @@ impl ChunkClipMap {
         let root_level = self.octree.root_level();
         for (root_ptr, root_coords) in self.octree.iter_roots() {
             let root_extent = chunk_extent_at_level_ivec3(root_level, ChunkUnits(root_coords));
-            if VoxelUnits::map2(extent, root_extent, |e1, e2| {
+            let disjoint = VoxelUnits::map2(extent, root_extent, |e1, e2| {
                 e1.intersection(&e2).is_empty()
             })
-            .into_inner()
-            {
+            .into_inner();
+            if disjoint {
                 continue;
             }
             self.octree
                 .visit_tree_depth_first(root_ptr, root_coords, min_level, |ptr, coords| {
                     let coords = ChunkUnits(coords);
                     let this_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
-                    if VoxelUnits::map2(this_extent, extent, |e1, e2| {
+                    let disjoint = VoxelUnits::map2(this_extent, extent, |e1, e2| {
                         e1.intersection(&e2).is_empty()
                     })
-                    .into_inner()
-                    {
+                    .into_inner();
+                    if disjoint {
                         VisitCommand::SkipDescendants
                     } else {
                         visitor(ptr, coords);
