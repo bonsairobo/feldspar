@@ -31,9 +31,8 @@ impl MetaTree {
         let tree = db.open_tree(format!("{}-meta", map_name))?;
 
         let cached_meta = tree.transaction(|txn| {
-            if let Some(data) = txn.get(META_KEY)? {
-                let archived = unsafe { archived_value::<MapDbMetadata>(data.as_ref(), 0) };
-                Ok(archived.deserialize(&mut Infallible).unwrap())
+            if let Some(cached_meta) = read_meta(txn)? {
+                Ok(cached_meta.unarchive())
             } else {
                 // First time opening this tree. Write the initial values.
                 let default_meta = MapDbMetadata::default();
@@ -74,6 +73,10 @@ pub struct OwnedArchivedMapDbMetadata {
 impl OwnedArchivedMapDbMetadata {
     pub fn new(bytes: IVec) -> Self {
         Self { bytes }
+    }
+
+    pub fn unarchive(&self) -> MapDbMetadata {
+        self.as_ref().deserialize(&mut Infallible).unwrap()
     }
 }
 

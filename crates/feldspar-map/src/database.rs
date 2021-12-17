@@ -4,14 +4,16 @@ mod change_tree;
 mod chunk_key;
 mod meta_tree;
 
+pub use chunk_key::ChunkDbKey;
+
 use bulk_tree::BulkTree;
 use change_tree::{create_version, ChangeTree, VersionChanges};
-use chunk_key::ChunkDbKey;
 use meta_tree::{update_current_version, MetaTree};
 
 use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::{TransactionError, Transactional};
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use self::meta_tree::MapDbMetadata;
 
@@ -75,16 +77,8 @@ impl<T> Change<T> {
 /// readers know where to find data.
 pub struct MapDb {
     db: sled::Db,
-
-    /// A map from `str` to arbitrary [`Archive`] data type. Currently contains:
-    ///
-    /// - "meta" -> [`MapDbMetadata`]
     meta_tree: MetaTree,
-
-    /// A map from [`ChunkDbKey`] to [`CompressedChunk`].
     bulk_tree: BulkTree,
-
-    /// A map from [`Version`] to [`VersionChanges`].
     change_tree: ChangeTree,
 
     /// A cache of the mapping from [`ChunkDbKey`] to [`Version`] for all keys that have been edited since the last version
@@ -97,10 +91,14 @@ pub struct MapDb {
 
 impl MapDb {
     /// Opens the [`sled::Tree`]s that contain our database, initializing them with an empty map if they didn't already exist.
-    pub fn open(db_name: &str, cache_capacity_bytes: usize) -> Result<Self, TransactionError> {
+    pub fn open<P: AsRef<Path>>(
+        db_path: P,
+        db_name: &str,
+        cache_capacity_bytes: usize,
+    ) -> Result<Self, TransactionError> {
         let db = sled::Config::default()
             .cache_capacity(cache_capacity_bytes)
-            .path(db_name)
+            .path(db_path)
             .open()?;
         let meta_tree = MetaTree::open(db_name, &db)?;
         let bulk_tree = BulkTree::open(db_name, &db)?;

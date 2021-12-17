@@ -1,5 +1,6 @@
 use sled::{transaction::TransactionError, Tree};
 
+/// A map from [`ChunkDbKey`](crate::ChunkDbKey) to [`ArchivedCompressedChunk`](crate::ArchivedCompressedChunk).
 pub struct BulkTree {
     tree: Tree,
 }
