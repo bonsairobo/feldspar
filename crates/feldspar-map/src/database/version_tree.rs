@@ -7,10 +7,6 @@ use sled::transaction::TransactionalTree;
 use sled::{transaction::UnabortableTransactionError, IVec, Tree};
 use std::collections::BTreeMap;
 
-/// ## Perf Note
-///
-/// Readers will need to fetch the entire [`ArchivedVersionChanges`] at a time from `sled`, but ideally it will reside in cache
-/// until those changes are rebulked.
 #[derive(Archive, Serialize)]
 pub struct VersionChanges {
     /// The version immediately before this one.
@@ -37,21 +33,18 @@ pub fn open_version_tree(map_name: &str, db: &sled::Db) -> sled::Result<Tree> {
     db.open_tree(format!("{}-versions", map_name))
 }
 
-/// Non-blocking write.
-pub fn create_version(
+pub fn archive_version(
     txn: &TransactionalTree,
+    version: Version,
     changes: &VersionChanges,
-) -> Result<Version, UnabortableTransactionError> {
+) -> Result<(), UnabortableTransactionError> {
     let mut serializer = AllocSerializer::<8192>::default();
     serializer.serialize_value(changes).unwrap();
     let changes_bytes = serializer.into_serializer().into_inner();
-
-    let new_version = Version::new(txn.generate_id()?);
-    txn.insert(&new_version.into_sled_key(), changes_bytes.as_ref())?;
-    Ok(new_version)
+    txn.insert(&version.into_sled_key(), changes_bytes.as_ref())?;
+    Ok(())
 }
 
-/// This may need to block on IO and should probably run in an async task.
 pub fn get_archived_version(
     txn: &TransactionalTree,
     version: Version,
@@ -92,7 +85,7 @@ mod tests {
     use sled::transaction::TransactionError;
 
     #[test]
-    fn open_create_and_get() {
+    fn open_archive_and_get() {
         let db = sled::Config::default().temporary(true).open().unwrap();
         let tree = db.open_tree("mymap-changes").unwrap();
         let v0 = Version::new(0);
@@ -101,7 +94,7 @@ mod tests {
             assert_eq!(get_archived_version(txn, v0).unwrap(), None);
 
             let changes = VersionChanges::new(Some(v0), BTreeMap::new());
-            create_version(txn, &changes).unwrap();
+            archive_version(txn, v0, &changes).unwrap();
 
             let owned_archive = get_archived_version(txn, Version::new(0)).unwrap().unwrap();
             assert_eq!(

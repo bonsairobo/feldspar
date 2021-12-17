@@ -80,6 +80,17 @@ impl Chunk {
         }
     }
 
+    pub fn from_compressed_bytes(bytes: &[u8]) -> Chunk {
+        let mut chunk = Chunk {
+            sdf: [Sd8(0); CHUNK_SIZE],
+            palette_ids: [0; CHUNK_SIZE],
+        };
+        let mut decoder = FrameDecoder::new(bytes.as_ref());
+        let mut writer = bytes_of_mut(&mut chunk);
+        io::copy(&mut decoder, &mut writer).unwrap();
+        chunk
+    }
+
     /// Downsamples the SDF and palette IDs from `self` at half resolution into one octant of a parent chunk.
     pub fn downsample_into(
         &self,
@@ -114,14 +125,7 @@ const_assert_eq!(
 
 impl CompressedChunk {
     pub fn decompress(&self) -> Chunk {
-        let mut chunk = Chunk {
-            sdf: [Sd8(0); CHUNK_SIZE],
-            palette_ids: [0; CHUNK_SIZE],
-        };
-        let mut decoder = FrameDecoder::new(self.bytes.as_ref());
-        let mut writer = bytes_of_mut(&mut chunk);
-        io::copy(&mut decoder, &mut writer).unwrap();
-        chunk
+        Chunk::from_compressed_bytes(&self.bytes)
     }
 }
 

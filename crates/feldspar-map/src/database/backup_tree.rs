@@ -1,7 +1,7 @@
 use super::{ChunkDbKey, VersionChanges};
-use crate::SmallKeyHashSet;
+use crate::{Change, EncodedChanges, SmallKeyHashSet};
 
-use sled::transaction::{TransactionError, TransactionalTree};
+use sled::transaction::{TransactionalTree, UnabortableTransactionError};
 use sled::Tree;
 
 pub fn open_backup_tree(map_name: &str, db: &sled::Db) -> sled::Result<(Tree, BackupKeyCache)> {
@@ -14,15 +14,34 @@ pub fn open_backup_tree(map_name: &str, db: &sled::Db) -> sled::Result<(Tree, Ba
     Ok((tree, BackupKeyCache { keys: all_keys }))
 }
 
-pub fn archive_parent_version(
+pub fn write_changes_to_backup_tree(
+    txn: &TransactionalTree,
+    changes: EncodedChanges,
+) -> Result<(), UnabortableTransactionError> {
+    for (key_bytes, change) in changes.changes.into_iter() {
+        let key = ChunkDbKey::from_be_bytes(&key_bytes);
+        match change {
+            Change::Insert(value) => {
+                txn.insert(&key_bytes, value)?;
+            }
+            Change::Remove => {
+                txn.remove(&key_bytes)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn commit_backup(
     txn: &TransactionalTree,
     keys: &BackupKeyCache,
-) -> Result<VersionChanges, TransactionError> {
+) -> Result<VersionChanges, UnabortableTransactionError> {
     todo!()
 }
 
-/// The set of keys currently stored in the backup tree.
-#[derive(Default)]
+/// The set of keys currently stored in the backup tree. Equivalently: the set of keys that have been changed from the parent
+/// version to the working version.
+#[derive(Clone, Default)]
 pub struct BackupKeyCache {
-    keys: SmallKeyHashSet<ChunkDbKey>,
+    pub keys: SmallKeyHashSet<ChunkDbKey>,
 }

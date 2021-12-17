@@ -122,7 +122,7 @@ mod tests {
         });
 
         // Re-open to make sure we can refresh the cached value.
-        let (tree, cached_meta) = open_meta_tree("mymap", &db).unwrap();
+        let (_tree, cached_meta) = open_meta_tree("mymap", &db).unwrap();
         assert_eq!(cached_meta, new_meta);
     }
 }
