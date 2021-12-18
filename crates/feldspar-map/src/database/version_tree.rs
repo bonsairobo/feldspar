@@ -45,6 +45,13 @@ pub fn archive_version(
     Ok(())
 }
 
+pub fn find_path_to_root(
+    txn: &TransactionalTree,
+    start_version: Version,
+) -> Result<Vec<Version>, UnabortableTransactionError> {
+    todo!()
+}
+
 pub fn get_archived_version(
     txn: &TransactionalTree,
     version: Version,

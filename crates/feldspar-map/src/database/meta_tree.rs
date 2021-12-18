@@ -18,7 +18,8 @@ const META_KEY: &'static str = "META";
 #[derive(Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[archive_attr(derive(Eq, PartialEq))]
 pub struct MapDbMetadata {
-    pub parent_version: Version,
+    pub grandparent_version: Option<Version>,
+    pub parent_version: Option<Version>,
     pub working_version: Version,
 }
 
@@ -33,9 +34,14 @@ pub fn open_meta_tree(
             Ok(cached_meta.unarchive())
         } else {
             // First time opening this tree. Write the initial values.
-            let default_meta = MapDbMetadata::default();
-            write_meta(txn, &default_meta)?;
-            Ok(default_meta)
+            let working_version = Version::new(txn.generate_id()?);
+            let meta = MapDbMetadata {
+                grandparent_version: None,
+                parent_version: None,
+                working_version,
+            };
+            write_meta(txn, &meta)?;
+            Ok(meta)
         }
     })?;
 
@@ -48,13 +54,30 @@ pub fn write_meta(
 ) -> Result<(), UnabortableTransactionError> {
     // TODO: one liner?
     // https://github.com/rkyv/rkyv/issues/232
-    let mut serializer = CoreSerializer::<32, 0>::default();
+    let mut serializer = CoreSerializer::<40, 0>::default();
     serializer.serialize_value(meta).unwrap();
     let bytes = serializer.into_serializer().into_inner();
 
     txn.insert(META_KEY, bytes.as_ref())?;
 
     Ok(())
+}
+
+pub fn read_meta(
+    txn: &TransactionalTree,
+) -> Result<Option<OwnedArchivedMapDbMetadata>, UnabortableTransactionError> {
+    let data = txn.get(META_KEY)?;
+    Ok(data.map(OwnedArchivedMapDbMetadata::new))
+}
+
+pub fn read_meta_or_abort(
+    txn: &TransactionalTree,
+) -> ConflictableTransactionResult<OwnedArchivedMapDbMetadata> {
+    if let Some(meta) = read_meta(txn)? {
+        Ok(meta)
+    } else {
+        abort(())
+    }
 }
 
 pub struct OwnedArchivedMapDbMetadata {
@@ -77,23 +100,6 @@ impl AsRef<ArchivedMapDbMetadata> for OwnedArchivedMapDbMetadata {
     }
 }
 
-pub fn read_meta(
-    txn: &TransactionalTree,
-) -> Result<Option<OwnedArchivedMapDbMetadata>, UnabortableTransactionError> {
-    let data = txn.get(META_KEY)?;
-    Ok(data.map(OwnedArchivedMapDbMetadata::new))
-}
-
-pub fn read_meta_or_abort(
-    txn: &TransactionalTree,
-) -> ConflictableTransactionResult<OwnedArchivedMapDbMetadata> {
-    if let Some(meta) = read_meta(txn)? {
-        Ok(meta)
-    } else {
-        abort(())
-    }
-}
-
 // ████████╗███████╗███████╗████████╗
 // ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
 //    ██║   █████╗  ███████╗   ██║
@@ -113,7 +119,8 @@ mod tests {
         assert_eq!(cached_meta, MapDbMetadata::default());
 
         let new_meta = MapDbMetadata {
-            parent_version: Version::new(20),
+            grandparent_version: None,
+            parent_version: Some(Version::new(20)),
             working_version: Version::new(18),
         };
         let _: Result<(), TransactionError<()>> = tree.transaction(|txn| {

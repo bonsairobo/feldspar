@@ -8,10 +8,14 @@ mod working_tree;
 pub use change_encoder::*;
 pub use chunk_key::ChunkDbKey;
 
-use backup_tree::{commit_backup, open_backup_tree, write_changes_to_backup_tree, BackupKeyCache};
-use meta_tree::open_meta_tree;
+use backup_tree::{
+    clear_backup, commit_backup, open_backup_tree, write_changes_to_backup_tree, BackupKeyCache,
+};
+use meta_tree::{open_meta_tree, read_meta_or_abort, write_meta};
 use version_tree::{archive_version, get_archived_version, open_version_tree, VersionChanges};
 use working_tree::{open_working_tree, write_changes_to_working_tree};
+
+use crate::CompressedChunk;
 
 use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::TransactionError;
@@ -37,21 +41,6 @@ impl Version {
     }
 }
 
-#[derive(Archive, Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-pub enum Change<T> {
-    Insert(T),
-    Remove,
-}
-
-impl<T> Change<T> {
-    pub fn map<S>(self, mut f: impl FnMut(T) -> S) -> Change<S> {
-        match self {
-            Change::Insert(x) => Change::Insert(f(x)),
-            Change::Remove => Change::Remove,
-        }
-    }
-}
-
 /// # Map Database
 ///
 /// This database is effectively the backing store for a [`ChunkClipMap`](crate::ChunkClipMap). It supports CRUD operations on
@@ -63,8 +52,8 @@ impl<T> Change<T> {
 ///
 /// ### Working Tree
 ///
-/// One tree is used for the *working* [`Version`] of the map, and it stores all of the
-/// [`CompressedChunk`](crate::CompressedChunk) data for the working version. All new changes are written to this tree.
+/// One tree is used for the *working* [`Version`] of the map, and it stores all of the [`CompressedChunk`] data for the working
+/// version. All new changes are written to this tree.
 ///
 /// ### Backup Tree
 ///
@@ -115,7 +104,7 @@ impl MapDb {
     /// Writes `changes` to the working version and stores the old values in the backup tree.
     pub fn write_working_version(
         &mut self,
-        changes: EncodedChanges,
+        changes: EncodedChanges<CompressedChunk>,
     ) -> Result<(), TransactionError> {
         let Self {
             working_tree,
@@ -151,18 +140,29 @@ impl MapDb {
     /// Archives the backup tree entries into a [`VersionChanges`] that gets serialized and stored in the version archive tree
     /// with the current working [`Version`]. A new working version is generated and the old working version becomes the parent
     /// version.
-    pub fn commit_working_version(&mut self) -> Result<(), TransactionError> {
-        (&self.backup_tree, &self.version_tree, &self.meta_tree).transaction(
+    pub fn commit_working_version(&mut self) -> Result<(), TransactionError<()>> {
+        let new_meta = (&self.backup_tree, &self.version_tree, &self.meta_tree).transaction(
             |(backup_txn, version_txn, meta_txn)| {
-                let backup_changes = commit_backup(backup_txn, &self.backup_key_cache)?;
-                archive_version(
-                    version_txn,
-                    self.cached_meta.parent_version,
-                    &backup_changes,
-                )?;
-                Ok(())
+                let mut meta = read_meta_or_abort(meta_txn)?.unarchive();
+                if let Some(parent) = self.cached_meta.parent_version {
+                    let backup_changes = commit_backup(backup_txn, &self.backup_key_cache)?;
+                    let version_changes =
+                        VersionChanges::new(meta.grandparent_version, backup_changes);
+                    archive_version(version_txn, parent, &version_changes)?;
+                } else {
+                    // We generally only need to do this once, but it's important for correctness.
+                    clear_backup(backup_txn, &self.backup_key_cache)?;
+                }
+                meta.grandparent_version = meta.parent_version;
+                meta.parent_version = Some(meta.working_version);
+                meta.working_version = Version::new(version_txn.generate_id()?);
+                write_meta(meta_txn, &meta)?;
+                Ok(meta)
             },
-        )
+        )?;
+        self.backup_key_cache.keys.clear();
+        self.cached_meta = new_meta;
+        Ok(())
     }
 
     /// Sets the parent version to `parent_version` and generates a new (empty) working child version.
@@ -193,8 +193,46 @@ mod tests {
         let mut encoder = ChangeEncoder::default();
         encoder.add_compressed_change(chunk_key, Change::Insert(Chunk::default().compress()));
         map.write_working_version(encoder.encode()).unwrap();
+
         let chunk_compressed_bytes = map.read_working_version(chunk_key).unwrap().unwrap();
         let chunk = Chunk::from_compressed_bytes(&chunk_compressed_bytes);
         assert_eq!(chunk, Chunk::default());
+    }
+
+    #[test]
+    fn commit_working_version_generates_new_version_and_updates_metadata() {
+        let db = sled::Config::default().temporary(true).open().unwrap();
+        let mut map = MapDb::open(&db, "mymap").unwrap();
+
+        assert_eq!(
+            map.cached_meta(),
+            &MapDbMetadata {
+                grandparent_version: None,
+                parent_version: None,
+                working_version: Version::new(0),
+            }
+        );
+
+        map.commit_working_version().unwrap();
+
+        assert_eq!(
+            map.cached_meta(),
+            &MapDbMetadata {
+                grandparent_version: None,
+                parent_version: Some(Version::new(0)),
+                working_version: Version::new(1),
+            }
+        );
+
+        map.commit_working_version().unwrap();
+
+        assert_eq!(
+            map.cached_meta(),
+            &MapDbMetadata {
+                grandparent_version: Some(Version::new(0)),
+                parent_version: Some(Version::new(1)),
+                working_version: Version::new(2),
+            }
+        );
     }
 }
