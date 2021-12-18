@@ -1,4 +1,4 @@
-use super::{Change, ChunkDbKey, Version};
+use super::{ArchivedIVec, Change, ChunkDbKey, Version};
 use crate::CompressedChunk;
 
 use rkyv::ser::{serializers::AllocSerializer, Serializer};
@@ -7,10 +7,8 @@ use sled::transaction::TransactionalTree;
 use sled::{transaction::UnabortableTransactionError, IVec, Tree};
 use std::collections::BTreeMap;
 
-#[derive(Archive, Serialize)]
+#[derive(Archive, Eq, PartialEq, Serialize)]
 pub struct VersionChanges {
-    /// The version immediately before this one.
-    pub parent_version: Option<Version>,
     /// The full set of changes made between `parent_version` and this version.
     ///
     /// Kept in a btree map to be efficiently searchable by readers.
@@ -18,19 +16,13 @@ pub struct VersionChanges {
 }
 
 impl VersionChanges {
-    pub fn new(
-        parent_version: Option<Version>,
-        changes: BTreeMap<ChunkDbKey, Change<CompressedChunk>>,
-    ) -> Self {
-        Self {
-            parent_version,
-            changes,
-        }
+    pub fn new(changes: BTreeMap<ChunkDbKey, Change<CompressedChunk>>) -> Self {
+        Self { changes }
     }
 }
 
-pub fn open_version_tree(map_name: &str, db: &sled::Db) -> sled::Result<Tree> {
-    db.open_tree(format!("{}-versions", map_name))
+pub fn open_version_change_tree(map_name: &str, db: &sled::Db) -> sled::Result<Tree> {
+    db.open_tree(format!("{}-version-changes", map_name))
 }
 
 pub fn archive_version(
@@ -45,36 +37,12 @@ pub fn archive_version(
     Ok(())
 }
 
-pub fn find_path_to_root(
-    txn: &TransactionalTree,
-    start_version: Version,
-) -> Result<Vec<Version>, UnabortableTransactionError> {
-    todo!()
-}
-
 pub fn get_archived_version(
     txn: &TransactionalTree,
     version: Version,
-) -> Result<Option<OwnedArchivedVersionChanges>, UnabortableTransactionError> {
+) -> Result<Option<ArchivedIVec<VersionChanges>>, UnabortableTransactionError> {
     let bytes = txn.get(&version.into_sled_key())?;
-    Ok(bytes.map(OwnedArchivedVersionChanges::new))
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OwnedArchivedVersionChanges {
-    bytes: IVec,
-}
-
-impl OwnedArchivedVersionChanges {
-    pub fn new(bytes: IVec) -> Self {
-        Self { bytes }
-    }
-}
-
-impl AsRef<ArchivedVersionChanges> for OwnedArchivedVersionChanges {
-    fn as_ref(&self) -> &ArchivedVersionChanges {
-        unsafe { archived_root::<VersionChanges>(self.bytes.as_ref()) }
-    }
+    Ok(bytes.map(|b| unsafe { ArchivedIVec::<VersionChanges>::new(b) }))
 }
 
 // ████████╗███████╗███████╗████████╗
@@ -87,8 +55,8 @@ impl AsRef<ArchivedVersionChanges> for OwnedArchivedVersionChanges {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ArchivedVersion;
 
+    use rkyv::option::ArchivedOption;
     use sled::transaction::TransactionError;
 
     #[test]
@@ -98,16 +66,16 @@ mod tests {
         let v0 = Version::new(0);
 
         let result: Result<(), TransactionError> = tree.transaction(|txn| {
-            assert_eq!(get_archived_version(txn, v0).unwrap(), None);
+            assert!(
+                get_archived_version(txn, v0).unwrap()
+                    == ArchivedOption::<ArchivedIVec<VersionChanges>>::None
+            );
 
-            let changes = VersionChanges::new(Some(v0), BTreeMap::new());
+            let changes = VersionChanges::new(BTreeMap::new());
             archive_version(txn, v0, &changes).unwrap();
 
             let owned_archive = get_archived_version(txn, Version::new(0)).unwrap().unwrap();
-            assert_eq!(
-                owned_archive.as_ref().parent_version,
-                Some(ArchivedVersion { number: v0.number })
-            );
+            assert!(owned_archive.as_ref().changes.is_empty());
 
             Ok(())
         });

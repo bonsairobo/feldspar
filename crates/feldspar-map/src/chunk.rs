@@ -5,7 +5,7 @@ use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
-use rkyv::{Archive, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 use static_assertions::const_assert_eq;
 use std::io;
 use std::mem;
@@ -113,7 +113,7 @@ impl Chunk {
     }
 }
 
-#[derive(Archive, Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Archive, Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
 pub struct CompressedChunk {
     pub bytes: Box<[u8]>,
 }

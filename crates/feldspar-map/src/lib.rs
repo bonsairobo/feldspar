@@ -58,6 +58,7 @@
 //! streaming data and managing transactions.
 
 mod allocator;
+mod archived_buf;
 mod bitset;
 mod chunk;
 mod clipmap;

@@ -1,18 +1,16 @@
-use super::ChunkDbKey;
+use super::{ArchivedIVec, ChunkDbKey};
 use crate::{CompressedChunk, SmallKeyHashMap};
 
 use rkyv::{
-    archived_root,
     ser::{
         serializers::{AllocSerializer, CoreSerializer},
         Serializer,
     },
-    Archive, Serialize,
+    AlignedBytes, AlignedVec, Archive, Deserialize, Serialize,
 };
 use sled::IVec;
-use std::marker::PhantomData;
 
-#[derive(Archive, Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Archive, Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Change<T> {
     Insert(T),
     Remove,
@@ -26,15 +24,22 @@ impl<T> Change<T> {
         }
     }
 
-    pub fn serialize_to_ivec(&self) -> OwnedArchivedChange<T>
+    pub fn serialize(&self) -> AlignedVec
     where
         T: Serialize<AllocSerializer<8912>>,
     {
         let mut serializer = AllocSerializer::<8912>::default();
         serializer.serialize_value(self).unwrap();
-        let bytes = IVec::from(serializer.into_serializer().into_inner().as_ref());
+        serializer.into_serializer().into_inner()
+    }
 
-        unsafe { OwnedArchivedChange::<T>::new(bytes) }
+    pub fn serialize_remove<const N: usize>() -> AlignedBytes<N>
+    where
+        T: Serialize<CoreSerializer<N, 0>>,
+    {
+        let mut serializer = CoreSerializer::<N, 0>::default();
+        serializer.serialize_value(&Change::<T>::Remove).unwrap();
+        serializer.into_serializer().into_inner()
     }
 }
 
@@ -57,7 +62,11 @@ impl ChangeEncoder {
         let mut changes: Vec<_> = self
             .added_changes
             .into_iter()
-            .map(|(key, change)| (key, change.serialize_to_ivec()))
+            .map(|(key, change)| {
+                (key, unsafe {
+                    ArchivedIVec::new(IVec::from(change.serialize().as_ref()))
+                })
+            })
             .collect();
 
         // Sort by the ord key.
@@ -79,7 +88,7 @@ impl ChangeEncoder {
 /// latest changes.
 #[derive(Clone, Default)]
 pub struct EncodedChanges<T> {
-    pub changes: Vec<(IVec, OwnedArchivedChange<T>)>,
+    pub changes: Vec<(IVec, ArchivedChangeIVec<T>)>,
 }
 
 /// We use this format for all changes stored in the working tree and backup tree.
@@ -89,54 +98,4 @@ pub struct EncodedChanges<T> {
 ///
 /// By using the same format for values in both trees, we don't need to re-serialize them when moving any entry from the working
 /// tree to the backup tree.
-#[derive(Clone)]
-pub struct OwnedArchivedChange<T> {
-    bytes: IVec,
-    marker: PhantomData<T>,
-}
-
-impl<T> OwnedArchivedChange<T> {
-    /// # Safety
-    ///
-    /// `bytes` must be a valid [`Archive`] representation for `T`.
-    pub unsafe fn new(bytes: IVec) -> Self {
-        Self {
-            bytes,
-            marker: PhantomData,
-        }
-    }
-
-    pub fn take_bytes(self) -> IVec {
-        self.bytes
-    }
-
-    pub fn remove() -> Self
-    where
-        T: Serialize<CoreSerializer<16, 0>>,
-    {
-        let mut serializer = CoreSerializer::<16, 0>::default();
-        serializer.serialize_value(&Change::<T>::Remove).unwrap();
-        let bytes = serializer.into_serializer().into_inner();
-        unsafe { OwnedArchivedChange::new(IVec::from(bytes.as_ref())) }
-    }
-}
-
-impl OwnedArchivedChange<CompressedChunk> {
-    pub fn unarchive(&self) -> Change<CompressedChunk> {
-        match self.as_ref() {
-            ArchivedChange::Insert(value) => Change::Insert(CompressedChunk {
-                bytes: Box::from(value.bytes.as_ref()),
-            }),
-            ArchivedChange::Remove => Change::Remove,
-        }
-    }
-}
-
-impl<T> AsRef<ArchivedChange<T>> for OwnedArchivedChange<T>
-where
-    T: Archive,
-{
-    fn as_ref(&self) -> &ArchivedChange<T> {
-        unsafe { archived_root::<Change<T>>(self.bytes.as_ref()) }
-    }
-}
+pub type ArchivedChangeIVec<T> = ArchivedIVec<Change<T>>;

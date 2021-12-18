@@ -1,16 +1,15 @@
-use super::Version;
+use super::{ArchivedIVec, Version};
 
 use rkyv::{
-    archived_value,
     ser::{serializers::CoreSerializer, Serializer},
-    Archive, Deserialize, Infallible, Serialize,
+    Archive, Deserialize, Serialize,
 };
 use sled::{
     transaction::{
         abort, ConflictableTransactionResult, TransactionError, TransactionalTree,
         UnabortableTransactionError,
     },
-    IVec, Tree,
+    Tree,
 };
 
 const META_KEY: &'static str = "META";
@@ -31,7 +30,7 @@ pub fn open_meta_tree(
 
     let cached_meta = tree.transaction(|txn| {
         if let Some(cached_meta) = read_meta(txn)? {
-            Ok(cached_meta.unarchive())
+            Ok(cached_meta.deserialize())
         } else {
             // First time opening this tree. Write the initial values.
             let working_version = Version::new(txn.generate_id()?);
@@ -65,38 +64,18 @@ pub fn write_meta(
 
 pub fn read_meta(
     txn: &TransactionalTree,
-) -> Result<Option<OwnedArchivedMapDbMetadata>, UnabortableTransactionError> {
+) -> Result<Option<ArchivedIVec<MapDbMetadata>>, UnabortableTransactionError> {
     let data = txn.get(META_KEY)?;
-    Ok(data.map(OwnedArchivedMapDbMetadata::new))
+    Ok(data.map(|b| unsafe { ArchivedIVec::<MapDbMetadata>::new(b) }))
 }
 
 pub fn read_meta_or_abort(
     txn: &TransactionalTree,
-) -> ConflictableTransactionResult<OwnedArchivedMapDbMetadata> {
+) -> ConflictableTransactionResult<ArchivedIVec<MapDbMetadata>> {
     if let Some(meta) = read_meta(txn)? {
         Ok(meta)
     } else {
         abort(())
-    }
-}
-
-pub struct OwnedArchivedMapDbMetadata {
-    bytes: IVec,
-}
-
-impl OwnedArchivedMapDbMetadata {
-    pub fn new(bytes: IVec) -> Self {
-        Self { bytes }
-    }
-
-    pub fn unarchive(&self) -> MapDbMetadata {
-        self.as_ref().deserialize(&mut Infallible).unwrap()
-    }
-}
-
-impl AsRef<ArchivedMapDbMetadata> for OwnedArchivedMapDbMetadata {
-    fn as_ref(&self) -> &ArchivedMapDbMetadata {
-        unsafe { archived_value::<MapDbMetadata>(self.bytes.as_ref(), 0) }
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Change, ChunkDbKey, EncodedChanges, OwnedArchivedChange};
+use super::{ArchivedChangeIVec, Change, ChunkDbKey, EncodedChanges};
 use crate::CompressedChunk;
 
 use sled::transaction::{
@@ -34,8 +34,8 @@ pub fn commit_backup(
     let mut changes = BTreeMap::default();
     for &key in keys.keys.iter() {
         if let Some(change) = txn.remove(&key.to_be_bytes())? {
-            let archived_change = unsafe { OwnedArchivedChange::<CompressedChunk>::new(change) };
-            changes.insert(key, archived_change.unarchive());
+            let archived_change = unsafe { ArchivedChangeIVec::<CompressedChunk>::new(change) };
+            changes.insert(key, archived_change.deserialize());
         } else {
             panic!("BUG: failed to get change backup for {:?}", key);
         }
