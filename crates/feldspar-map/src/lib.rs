@@ -92,6 +92,18 @@ pub use ilattice;
 pub use ilattice::glam;
 
 use ahash::{AHashMap, AHashSet};
+use rkyv::{
+    ser::serializers::{
+        AlignedSerializer, AllocScratch, CompositeSerializer, FallbackScratch, HeapScratch,
+    },
+    AlignedVec, Infallible,
+};
 
 type SmallKeyHashMap<K, V> = AHashMap<K, V>;
 type SmallKeyHashSet<K> = AHashSet<K>;
+
+pub type NoSharedAllocSerializer<const N: usize> = CompositeSerializer<
+    AlignedSerializer<AlignedVec>,
+    FallbackScratch<HeapScratch<N>, AllocScratch>,
+    Infallible,
+>;

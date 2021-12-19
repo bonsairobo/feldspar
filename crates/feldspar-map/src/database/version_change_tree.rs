@@ -1,7 +1,7 @@
 use super::{ArchivedIVec, Change, ChunkDbKey, EncodedChanges, Version};
-use crate::CompressedChunk;
+use crate::{CompressedChunk, NoSharedAllocSerializer};
 
-use rkyv::ser::{serializers::AllocSerializer, Serializer};
+use rkyv::ser::Serializer;
 use rkyv::{Archive, Serialize};
 use sled::transaction::TransactionalTree;
 use sled::{transaction::UnabortableTransactionError, Tree};
@@ -43,7 +43,7 @@ pub fn archive_version(
     version: Version,
     changes: &VersionChanges,
 ) -> Result<(), UnabortableTransactionError> {
-    let mut serializer = AllocSerializer::<8192>::default();
+    let mut serializer = NoSharedAllocSerializer::<8192>::default();
     serializer.serialize_value(changes).unwrap();
     let changes_bytes = serializer.into_serializer().into_inner();
     txn.insert(&version.into_sled_key(), changes_bytes.as_ref())?;

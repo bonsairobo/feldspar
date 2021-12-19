@@ -1,11 +1,8 @@
 use super::{ArchivedIVec, ChunkDbKey};
-use crate::{CompressedChunk, SmallKeyHashMap};
+use crate::{CompressedChunk, NoSharedAllocSerializer, SmallKeyHashMap};
 
 use rkyv::{
-    ser::{
-        serializers::{AllocSerializer, CoreSerializer},
-        Serializer,
-    },
+    ser::{serializers::CoreSerializer, Serializer},
     AlignedBytes, AlignedVec, Archive, Deserialize, Serialize,
 };
 use sled::IVec;
@@ -26,9 +23,9 @@ impl<T> Change<T> {
 
     pub fn serialize(&self) -> AlignedVec
     where
-        T: Serialize<AllocSerializer<8912>>,
+        T: Serialize<NoSharedAllocSerializer<8912>>,
     {
-        let mut serializer = AllocSerializer::<8912>::default();
+        let mut serializer = NoSharedAllocSerializer::<8912>::default();
         serializer.serialize_value(self).unwrap();
         serializer.into_serializer().into_inner()
     }
