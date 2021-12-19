@@ -85,7 +85,7 @@ impl Chunk {
             sdf: [Sd8(0); CHUNK_SIZE],
             palette_ids: [0; CHUNK_SIZE],
         };
-        let mut decoder = FrameDecoder::new(bytes.as_ref());
+        let mut decoder = FrameDecoder::new(bytes);
         let mut writer = bytes_of_mut(&mut chunk);
         io::copy(&mut decoder, &mut writer).unwrap();
         chunk

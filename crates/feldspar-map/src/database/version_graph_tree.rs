@@ -58,9 +58,9 @@ pub fn find_path_between_versions(
     }
 
     // If we didn't see the end_version, then it's not an ancestor, so we need to find the nearest common ancestor.
-    let start_root_version = start_path.path.last().unwrap().clone();
+    let start_root_version = *start_path.path.last().unwrap();
     let (_path_result, mut end_path) = find_ancestor_path(txn, end_version, start_root_version)?;
-    let end_root_version = end_path.path.last().unwrap().clone();
+    let end_root_version = *end_path.path.last().unwrap();
 
     if start_root_version != end_root_version {
         // No path exists. Programmer error?
