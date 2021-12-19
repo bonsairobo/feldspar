@@ -130,7 +130,7 @@ impl MapDb {
         &mut self,
         changes: EncodedChanges<CompressedChunk>,
     ) -> Result<(), TransactionError> {
-        println!("Writing to {:?}", self.cached_meta.working_version);
+        log::trace!("Writing to {:?}", self.cached_meta.working_version);
         let Self {
             working_tree,
             backup_tree,
@@ -176,7 +176,10 @@ impl MapDb {
             return Ok(());
         }
 
-        println!("Committing {:?}", self.cached_meta.working_version);
+        log::trace!(
+            "Committing non-empty {:?}",
+            self.cached_meta.working_version
+        );
 
         let new_meta = (
             &self.backup_tree,
@@ -186,7 +189,7 @@ impl MapDb {
         )
             .transaction(|(backup_txn, graph_txn, changes_txn, meta_txn)| {
                 if let Some(parent) = self.cached_meta.parent_version {
-                    println!("Archiving {:?} from backup", parent);
+                    log::trace!("Archiving {:?} from backup", parent);
                     archive_version(
                         changes_txn,
                         parent,
@@ -248,9 +251,10 @@ impl MapDb {
                     let empty_backup_keys = BackupKeyCache {
                         keys: BTreeSet::default(),
                     };
-                    println!(
+                    log::trace!(
                         "Migrating from parent {:?} to parent {:?}",
-                        old_parent_version, new_parent_version
+                        old_parent_version,
+                        new_parent_version
                     );
                     for (&prev_version, &next_version) in path.path.iter().tuple_windows() {
                         if let Some(changes) = remove_archived_version(change_txn, next_version)? {
@@ -262,18 +266,13 @@ impl MapDb {
                                 let change = change.deserialize(&mut Infallible).unwrap();
                                 encoder.add_compressed_change(key, change);
                             }
-                            println!("Re-applying archived version changes");
                             let reverse_changes = write_changes_to_working_tree(
                                 working_txn,
                                 &empty_backup_keys,
                                 encoder.encode(),
                             )?;
-                            println!("Encoded reverse changes: {:?}", reverse_changes);
                             let prev_version_changes = VersionChanges::from(&reverse_changes);
-                            println!(
-                                "Archiving {:?} from working tree: {:?}",
-                                prev_version, prev_version_changes
-                            );
+                            log::trace!("Archiving {:?} from working tree", prev_version,);
                             archive_version(change_txn, prev_version, &prev_version_changes)?;
                         } else {
                             return abort(AbortReason::MissingVersionChanges);
@@ -307,8 +306,6 @@ mod tests {
     use super::*;
     use crate::glam::IVec3;
     use crate::Chunk;
-
-    use rkyv::ser::{serializers::AllocSerializer, Serializer};
 
     #[test]
     fn write_and_read_changes_same_version() {
@@ -355,17 +352,6 @@ mod tests {
 
     #[test]
     fn commit_multiple_versions_with_changes_and_branch() {
-        println!(
-            "Correct compressed chunk = {:?}",
-            Chunk::default().compress()
-        );
-        let mut serializer = AllocSerializer::<8192>::default();
-        serializer.serialize_value(&Change::Insert(Chunk::default().compress()));
-        println!(
-            "Correct compressed chunk insert = {:?}",
-            serializer.into_serializer().into_inner()
-        );
-
         let db = sled::Config::default().temporary(true).open().unwrap();
         let mut map = MapDb::open(&db, "mymap").unwrap();
 
@@ -400,11 +386,15 @@ mod tests {
         // But we can bring it back by reverting to v0.
         map.branch_from_version(v0).unwrap();
 
-        let value_bytes = map.read_working_version(chunk_key1).unwrap().unwrap();
-        assert_eq!(
-            value_bytes.deserialize(),
-            Change::Insert(Chunk::default().compress())
-        );
+        let expected_insert = Ok(Some(unsafe {
+            ArchivedChangeIVec::new(IVec::from(
+                Change::Insert(Chunk::default().compress())
+                    .serialize()
+                    .as_ref(),
+            ))
+        }));
+
+        assert_eq!(map.read_working_version(chunk_key1), expected_insert);
 
         // Commit changes to the branch.
         let chunk_key2 = ChunkDbKey::new(2, IVec3::ZERO.into());
@@ -420,15 +410,8 @@ mod tests {
         assert_eq!(map.read_working_version(chunk_key2).unwrap(), None);
 
         // And back.
-        let expected_change = Ok(Some(unsafe {
-            ArchivedChangeIVec::new(IVec::from(
-                Change::Insert(Chunk::default().compress())
-                    .serialize()
-                    .as_ref(),
-            ))
-        }));
         map.branch_from_version(v2).unwrap();
-        assert_eq!(map.read_working_version(chunk_key1), expected_change);
-        assert_eq!(map.read_working_version(chunk_key2), expected_change);
+        assert_eq!(map.read_working_version(chunk_key1), expected_insert);
+        assert_eq!(map.read_working_version(chunk_key2), expected_insert);
     }
 }
