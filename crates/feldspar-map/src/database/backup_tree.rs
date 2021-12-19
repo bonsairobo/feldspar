@@ -1,4 +1,4 @@
-use super::{ArchivedChangeIVec, Change, ChunkDbKey, EncodedChanges};
+use super::{AbortReason, ArchivedChangeIVec, ChunkDbKey, EncodedChanges, VersionChanges};
 use crate::CompressedChunk;
 
 use sled::transaction::{
@@ -12,7 +12,7 @@ pub fn open_backup_tree(map_name: &str, db: &sled::Db) -> sled::Result<(Tree, Ba
     let mut keys = BTreeSet::default();
     for iter_result in tree.iter() {
         let (key_bytes, _) = iter_result?;
-        keys.insert(ChunkDbKey::from_be_bytes(&key_bytes));
+        keys.insert(ChunkDbKey::from_sled_key(&key_bytes));
     }
     Ok((tree, BackupKeyCache { keys }))
 }
@@ -30,17 +30,17 @@ pub fn write_changes_to_backup_tree(
 pub fn commit_backup(
     txn: &TransactionalTree,
     keys: &BackupKeyCache,
-) -> Result<BTreeMap<ChunkDbKey, Change<CompressedChunk>>, ConflictableTransactionError<()>> {
+) -> Result<VersionChanges, ConflictableTransactionError<AbortReason>> {
     let mut changes = BTreeMap::default();
     for &key in keys.keys.iter() {
-        if let Some(change) = txn.remove(&key.to_be_bytes())? {
+        if let Some(change) = txn.remove(&key.into_sled_key())? {
             let archived_change = unsafe { ArchivedChangeIVec::<CompressedChunk>::new(change) };
             changes.insert(key, archived_change.deserialize());
         } else {
             panic!("BUG: failed to get change backup for {:?}", key);
         }
     }
-    Ok(changes)
+    Ok(VersionChanges::new(changes))
 }
 
 pub fn clear_backup(
@@ -48,7 +48,7 @@ pub fn clear_backup(
     keys: &BackupKeyCache,
 ) -> Result<(), UnabortableTransactionError> {
     for key in keys.keys.iter() {
-        txn.remove(&key.to_be_bytes())?;
+        txn.remove(&key.into_sled_key())?;
     }
     Ok(())
 }
@@ -93,11 +93,11 @@ mod tests {
         encoder.add_compressed_change(key2, Change::Insert(Chunk::default().compress()));
         let encoded_changes = encoder.encode();
 
-        let _: Result<_, TransactionError<()>> = tree.transaction(|txn| {
-            let _ = write_changes_to_backup_tree(txn, encoded_changes.clone())?;
+        let _: Result<_, TransactionError<AbortReason>> = tree.transaction(|txn| {
+            write_changes_to_backup_tree(txn, encoded_changes.clone())?;
             let reverse_changes = commit_backup(txn, &backup_keys)?;
             assert_eq!(
-                reverse_changes,
+                reverse_changes.changes,
                 BTreeMap::from([
                     (key1, Change::Remove),
                     (key2, Change::Insert(Chunk::default().compress()))

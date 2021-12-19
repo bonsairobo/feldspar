@@ -3,9 +3,11 @@ use crate::Level;
 
 use core::ops::RangeInclusive;
 use ilattice::prelude::{Bounded, Extent, Morton3i32};
-use rkyv::{Archive, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 
-#[derive(Archive, Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize)]
+#[derive(
+    Archive, Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize,
+)]
 #[archive_attr(derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord))]
 pub struct ChunkDbKey {
     level: Level,
@@ -21,14 +23,14 @@ impl ChunkDbKey {
     ///
     /// 13 bytes total per key, 1 for LOD and 12 for the morton code. Although a [`Morton3i32`] uses a u128, it only actually
     /// uses the least significant 96 bits (12 bytes).
-    pub fn to_be_bytes(&self) -> [u8; 13] {
+    pub fn into_sled_key(&self) -> [u8; 13] {
         let mut bytes = [0; 13];
         bytes[0] = self.level;
         bytes[1..].copy_from_slice(&self.morton.0.to_be_bytes()[4..]);
         bytes
     }
 
-    pub fn from_be_bytes(bytes: &[u8]) -> Self {
+    pub fn from_sled_key(bytes: &[u8]) -> Self {
         let level = bytes[0];
         // The most significant 4 bytes of the u128 are not used.
         let mut morton_bytes = [0; 16];

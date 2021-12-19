@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 
 /// A wrapper around a byte buffer `B` that denotes the bytes represent an [`Archived<T>`].
 ///
-/// Note: While not unsafe, this is not intended to be used with structures that utilize shared memory like `Rc` and `Arc`.
+/// Note: This is not intended for use with archived structures that utilize shared memory like `ArchivedRc` and
+/// `ArchivedArc`.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ArchivedBuf<T, B> {
     bytes: B,

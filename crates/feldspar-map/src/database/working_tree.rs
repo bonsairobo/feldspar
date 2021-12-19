@@ -30,7 +30,7 @@ pub fn write_changes_to_working_tree(
             ArchivedChange::Remove => txn.remove(&key_bytes)?,
         };
 
-        let key = ChunkDbKey::from_be_bytes(&key_bytes);
+        let key = ChunkDbKey::from_sled_key(&key_bytes);
         if backup_key_cache.keys.contains(&key) {
             // We only want the oldest changes for the backup version.
             continue;

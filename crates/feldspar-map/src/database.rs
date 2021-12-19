@@ -12,19 +12,23 @@ pub use chunk_key::ChunkDbKey;
 use backup_tree::{
     clear_backup, commit_backup, open_backup_tree, write_changes_to_backup_tree, BackupKeyCache,
 };
-use meta_tree::{open_meta_tree, read_meta_or_abort, write_meta};
+use meta_tree::{open_meta_tree, write_meta};
 use version_change_tree::{
-    archive_version, get_archived_version, open_version_change_tree, VersionChanges,
+    archive_version, open_version_change_tree, remove_archived_version, VersionChanges,
 };
-use version_graph_tree::{link_version, open_version_graph_tree};
+use version_graph_tree::{
+    find_path_between_versions, link_version, open_version_graph_tree, VersionNode,
+};
 use working_tree::{open_working_tree, write_changes_to_working_tree};
 
 use crate::archived_buf::ArchivedBuf;
 use crate::CompressedChunk;
 
-use rkyv::{Archive, Deserialize, Serialize};
-use sled::transaction::TransactionError;
+use itertools::Itertools;
+use rkyv::{Archive, Deserialize, Infallible, Serialize};
+use sled::transaction::{abort, TransactionError};
 use sled::{IVec, Transactional, Tree};
+use std::collections::BTreeSet;
 
 use self::meta_tree::MapDbMetadata;
 
@@ -48,6 +52,13 @@ impl Version {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AbortReason {
+    NoPathExists,
+    NoPathExistsToRoot,
+    MissingVersionChanges,
+}
+
 /// # Map Database
 ///
 /// This database is effectively the backing store for a [`ChunkClipMap`](crate::ChunkClipMap). It supports CRUD operations on
@@ -55,7 +66,7 @@ impl Version {
 ///
 /// ## Implementation
 ///
-/// All data is stored in three [`sled::Tree`]s.
+/// All user data is stored in three [`sled::Tree`]s.
 ///
 /// ### Working Tree
 ///
@@ -92,7 +103,7 @@ pub struct MapDb {
 
 impl MapDb {
     /// Opens the database. On first open, a single working version will be created with no parent version.
-    pub fn open(db: &sled::Db, map_name: &str) -> Result<Self, TransactionError> {
+    pub fn open(db: &sled::Db, map_name: &str) -> Result<Self, TransactionError<AbortReason>> {
         let (meta_tree, cached_meta) = open_meta_tree(map_name, db)?;
         let version_change_tree = open_version_change_tree(map_name, db)?;
         let version_graph_tree = open_version_graph_tree(map_name, db)?;
@@ -132,13 +143,14 @@ impl MapDb {
                 let new_backup_keys = reverse_changes
                     .changes
                     .iter()
-                    .map(|(key, _)| ChunkDbKey::from_be_bytes(key))
+                    .map(|(key, _)| ChunkDbKey::from_sled_key(key))
                     .collect();
                 write_changes_to_backup_tree(backup_txn, reverse_changes)?;
                 Ok(new_backup_keys)
             })?;
         // Transaction succeeded, so add the new keys to the backup cache.
         for key in new_backup_keys.into_iter() {
+            debug_assert!(!backup_key_cache.keys.contains(&key));
             backup_key_cache.keys.insert(key);
         }
         Ok(())
@@ -146,47 +158,123 @@ impl MapDb {
 
     /// Reads the compressed bytes of the chunk at `key` for the working version.
     pub fn read_working_version(&self, key: ChunkDbKey) -> Result<Option<IVec>, sled::Error> {
-        self.working_tree
-            .get(IVec::from(&ChunkDbKey::to_be_bytes(&key)))
+        self.working_tree.get(IVec::from(&key.into_sled_key()))
     }
 
-    /// Archives the backup tree entries into a [`VersionChanges`] that gets serialized and stored in the version archive tree
+    /// Archives the backup tree entries into a [`VersionChanges`] that gets serialized and stored in the version change tree
     /// with the current working [`Version`]. A new working version is generated and the old working version becomes the parent
     /// version.
-    pub fn commit_working_version(&mut self) -> Result<(), TransactionError<()>> {
+    ///
+    /// Nothing happens if the working version has no changes.
+    pub fn commit_working_version(&mut self) -> Result<(), TransactionError<AbortReason>> {
+        if self.backup_key_cache.keys.is_empty() {
+            return Ok(());
+        }
+
         let new_meta = (
             &self.backup_tree,
             &self.version_graph_tree,
             &self.version_change_tree,
             &self.meta_tree,
         )
-            .transaction(
-                |(backup_txn, version_graph_txn, version_changes_txn, meta_txn)| {
-                    let mut meta = read_meta_or_abort(meta_txn)?.deserialize();
-                    if let Some(parent) = self.cached_meta.parent_version {
-                        let backup_changes = commit_backup(backup_txn, &self.backup_key_cache)?;
-                        link_version(version_graph_txn, parent, meta.grandparent_version)?;
-                        let version_changes = VersionChanges::new(backup_changes);
-                        archive_version(version_changes_txn, parent, &version_changes)?;
-                    } else {
-                        // We generally only need to do this once, but it's important for correctness.
-                        clear_backup(backup_txn, &self.backup_key_cache)?;
-                    }
-                    meta.grandparent_version = meta.parent_version;
-                    meta.parent_version = Some(meta.working_version);
-                    meta.working_version = Version::new(version_graph_txn.generate_id()?);
-                    write_meta(meta_txn, &meta)?;
-                    Ok(meta)
-                },
-            )?;
+            .transaction(|(backup_txn, graph_txn, changes_txn, meta_txn)| {
+                if let Some(parent) = self.cached_meta.parent_version {
+                    println!("Archiving {:?} from backup", parent);
+                    archive_version(
+                        changes_txn,
+                        parent,
+                        &commit_backup(backup_txn, &self.backup_key_cache)?,
+                    )?;
+                } else {
+                    // We only need to do this once, but it's important for correctness.
+                    clear_backup(backup_txn, &self.backup_key_cache)?;
+                }
+                link_version(
+                    graph_txn,
+                    self.cached_meta.working_version,
+                    VersionNode {
+                        parent_version: self.cached_meta.parent_version,
+                    },
+                )?;
+                let new_meta = MapDbMetadata {
+                    grandparent_version: self.cached_meta.parent_version,
+                    parent_version: Some(self.cached_meta.working_version),
+                    working_version: Version::new(graph_txn.generate_id()?),
+                };
+                write_meta(meta_txn, &new_meta)?;
+                Ok(new_meta)
+            })?;
         self.backup_key_cache.keys.clear();
         self.cached_meta = new_meta;
         Ok(())
     }
 
-    /// Sets the parent version to `parent_version` and generates a new (empty) working child version.
-    pub fn branch_from_version(&self, parent_version: Version) -> Result<(), TransactionError<()>> {
-        todo!()
+    /// Sets the parent version to `new_parent_version` and generates a new (empty) working child version.
+    ///
+    /// This will always `commit_working_version` before migrating to a new parent. If there is no parent for the current
+    /// working version, then nothing happens.
+    pub fn branch_from_version(
+        &mut self,
+        new_parent_version: Version,
+    ) -> Result<(), TransactionError<AbortReason>> {
+        // After committing, we may end up with a new empty working version. But it's not linked into the graph yet. We can just
+        // abandon it, since it is empty.
+        self.commit_working_version()?;
+
+        let old_meta = self.cached_meta;
+
+        if let Some(old_parent_version) = old_meta.parent_version {
+            let new_meta = (
+                &self.meta_tree,
+                &self.version_graph_tree,
+                &self.version_change_tree,
+                &self.working_tree,
+            )
+                .transaction(|(meta_txn, graph_txn, change_txn, working_txn)| {
+                    // Apply the archived changes from all versions between the old parent version and the new parent version,
+                    // leaving behind the inverse changes.
+                    let path = find_path_between_versions(
+                        graph_txn,
+                        old_parent_version,
+                        new_parent_version,
+                    )?;
+                    let empty_backup_keys = BackupKeyCache {
+                        keys: BTreeSet::default(),
+                    };
+                    for (&prev_version, &next_version) in path.path.iter().tuple_windows() {
+                        if let Some(changes) = remove_archived_version(change_txn, next_version)? {
+                            let mut encoder = ChangeEncoder::default();
+                            for (key, change) in changes.as_ref().changes.iter() {
+                                let key: ChunkDbKey = key.deserialize(&mut Infallible).unwrap();
+                                // PERF: in principle we should be able to copy the compressed bytes directly from the archived
+                                // change, but the types aren't set up for that yet
+                                let change = change.deserialize(&mut Infallible).unwrap();
+                                encoder.add_compressed_change(key, change);
+                            }
+                            let reverse_changes = write_changes_to_working_tree(
+                                working_txn,
+                                &empty_backup_keys,
+                                encoder.encode(),
+                            )?;
+                            println!("Archiving {:?} from working tree", prev_version);
+                            archive_version(change_txn, prev_version, &(&reverse_changes).into())?;
+                        } else {
+                            return abort(AbortReason::MissingVersionChanges);
+                        }
+                    }
+                    let new_working_version = Version::new(graph_txn.generate_id()?);
+                    let new_meta = MapDbMetadata {
+                        grandparent_version: path.end_parent,
+                        parent_version: Some(new_parent_version),
+                        working_version: new_working_version,
+                    };
+                    write_meta(meta_txn, &new_meta)?;
+                    Ok(new_meta)
+                })?;
+            self.cached_meta = new_meta;
+        }
+
+        Ok(())
     }
 }
 
@@ -219,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn commit_working_version_generates_new_version_and_updates_metadata() {
+    fn commit_empty_working_version_does_nothing() {
         let db = sled::Config::default().temporary(true).open().unwrap();
         let mut map = MapDb::open(&db, "mymap").unwrap();
 
@@ -238,19 +326,8 @@ mod tests {
             map.cached_meta(),
             &MapDbMetadata {
                 grandparent_version: None,
-                parent_version: Some(Version::new(0)),
-                working_version: Version::new(1),
-            }
-        );
-
-        map.commit_working_version().unwrap();
-
-        assert_eq!(
-            map.cached_meta(),
-            &MapDbMetadata {
-                grandparent_version: Some(Version::new(0)),
-                parent_version: Some(Version::new(1)),
-                working_version: Version::new(2),
+                parent_version: None,
+                working_version: Version::new(0),
             }
         );
     }
@@ -260,9 +337,9 @@ mod tests {
         let db = sled::Config::default().temporary(true).open().unwrap();
         let mut map = MapDb::open(&db, "mymap").unwrap();
 
-        let chunk_key = ChunkDbKey::new(1, IVec3::ZERO.into());
+        let chunk_key1 = ChunkDbKey::new(1, IVec3::ZERO.into());
         let mut encoder = ChangeEncoder::default();
-        encoder.add_compressed_change(chunk_key, Change::Insert(Chunk::default().compress()));
+        encoder.add_compressed_change(chunk_key1, Change::Insert(Chunk::default().compress()));
         map.write_working_version(encoder.encode()).unwrap();
 
         let v0 = map.cached_meta().working_version;
@@ -270,19 +347,54 @@ mod tests {
 
         // Undo the previous change.
         let mut encoder = ChangeEncoder::default();
-        encoder.add_compressed_change(chunk_key, Change::Remove);
+        encoder.add_compressed_change(chunk_key1, Change::Remove);
         map.write_working_version(encoder.encode()).unwrap();
 
+        let v1 = map.cached_meta().working_version;
         map.commit_working_version().unwrap();
 
+        assert_eq!(
+            map.cached_meta(),
+            &MapDbMetadata {
+                working_version: Version::new(2),
+                parent_version: Some(v1),
+                grandparent_version: Some(v0),
+            }
+        );
+
         // We removed the entry in this version.
-        assert_eq!(map.read_working_version(chunk_key).unwrap(), None);
+        assert_eq!(map.read_working_version(chunk_key1).unwrap(), None);
 
         // But we can bring it back by reverting to v0.
         map.branch_from_version(v0).unwrap();
 
-        let value_bytes = map.read_working_version(chunk_key).unwrap().unwrap();
-        let chunk = Chunk::from_compressed_bytes(value_bytes.as_ref());
-        assert_eq!(chunk, Chunk::default());
+        let value_bytes = map.read_working_version(chunk_key1).unwrap().unwrap();
+        assert_eq!(
+            Chunk::from_compressed_bytes(value_bytes.as_ref()),
+            Chunk::default()
+        );
+
+        // Commit changes to the branch.
+        let chunk_key2 = ChunkDbKey::new(1, IVec3::ZERO.into());
+        let mut encoder = ChangeEncoder::default();
+        encoder.add_compressed_change(chunk_key2, Change::Insert(Chunk::default().compress()));
+        map.write_working_version(encoder.encode()).unwrap();
+        map.commit_working_version().unwrap();
+
+        // Branch from a sibling version.
+        map.branch_from_version(v1).unwrap();
+        assert_eq!(
+            map.read_working_version(chunk_key1),
+            Ok(Some(IVec::from(Chunk::default().compress().bytes)))
+        );
+        assert_eq!(map.read_working_version(chunk_key2).unwrap(), None);
+
+        // And back.
+        map.branch_from_version(v1).unwrap();
+        assert_eq!(map.read_working_version(chunk_key1).unwrap(), None);
+        assert_eq!(
+            map.read_working_version(chunk_key2),
+            Ok(Some(IVec::from(Chunk::default().compress().bytes)))
+        );
     }
 }

@@ -1,14 +1,11 @@
-use super::{ArchivedIVec, Version};
+use super::{AbortReason, ArchivedIVec, Version};
 
 use rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
     Archive, Deserialize, Serialize,
 };
 use sled::{
-    transaction::{
-        abort, ConflictableTransactionResult, TransactionError, TransactionalTree,
-        UnabortableTransactionError,
-    },
+    transaction::{TransactionError, TransactionalTree, UnabortableTransactionError},
     Tree,
 };
 
@@ -25,7 +22,7 @@ pub struct MapDbMetadata {
 pub fn open_meta_tree(
     map_name: &str,
     db: &sled::Db,
-) -> Result<(Tree, MapDbMetadata), TransactionError> {
+) -> Result<(Tree, MapDbMetadata), TransactionError<AbortReason>> {
     let tree = db.open_tree(format!("{}-meta", map_name))?;
 
     let cached_meta = tree.transaction(|txn| {
@@ -69,16 +66,6 @@ pub fn read_meta(
     Ok(data.map(|b| unsafe { ArchivedIVec::<MapDbMetadata>::new(b) }))
 }
 
-pub fn read_meta_or_abort(
-    txn: &TransactionalTree,
-) -> ConflictableTransactionResult<ArchivedIVec<MapDbMetadata>> {
-    if let Some(meta) = read_meta(txn)? {
-        Ok(meta)
-    } else {
-        abort(())
-    }
-}
-
 // ████████╗███████╗███████╗████████╗
 // ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
 //    ██║   █████╗  ███████╗   ██║
@@ -103,7 +90,7 @@ mod tests {
             working_version: Version::new(18),
         };
         let _: Result<(), TransactionError<()>> = tree.transaction(|txn| {
-            let _ = write_meta(txn, &new_meta)?;
+            write_meta(txn, &new_meta)?;
             Ok(())
         });
 

@@ -13,6 +13,7 @@ futures = "0.3"
 grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", branch = "main" }
 grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main" }
 ilattice = { git = "https://github.com/bonsairobo/ilattice-rs", branch = "main", features = ["morton-encoding", "rkyv"] }
+itertools = "0.10"
 lz4_flex = "0.9"
 ndshape = "0.2"
 parking_lot = "0.11"

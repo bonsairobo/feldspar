@@ -64,6 +64,7 @@ impl ChangeEncoder {
             .into_iter()
             .map(|(key, change)| {
                 (key, unsafe {
+                    // PERF: sad that we can't serialize directly into an IVec
                     ArchivedIVec::new(IVec::from(change.serialize().as_ref()))
                 })
             })
@@ -75,7 +76,7 @@ impl ChangeEncoder {
         // Serialize the keys.
         let changes: Vec<_> = changes
             .into_iter()
-            .map(|(key, change)| (IVec::from(key.to_be_bytes().as_ref()), change))
+            .map(|(key, change)| (IVec::from(key.into_sled_key().as_ref()), change))
             .collect();
 
         EncodedChanges { changes }
