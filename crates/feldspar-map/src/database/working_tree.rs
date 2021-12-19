@@ -21,26 +21,42 @@ pub fn write_changes_to_working_tree(
     let mut reverse_changes = Vec::with_capacity(changes.changes.len());
     let remove_bytes = unsafe {
         ArchivedIVec::new(IVec::from(
-            Change::<CompressedChunk>::serialize_remove::<16>().as_ref(),
+            Change::<CompressedChunk>::serialize_remove::<12>().as_ref(),
         ))
     };
     for (key_bytes, change) in changes.changes.into_iter() {
+        let key = ChunkDbKey::from_sled_key(&key_bytes);
+
         let old_value = match change.as_ref() {
-            ArchivedChange::Insert(_) => txn.insert(&key_bytes, change.take_bytes())?,
-            ArchivedChange::Remove => txn.remove(&key_bytes)?,
+            ArchivedChange::Insert(_) => {
+                println!(
+                    "Inserting to working tree {:?}: {:?}",
+                    key,
+                    change.as_bytes()
+                );
+                txn.insert(&key_bytes, change.take_bytes())?
+            }
+            ArchivedChange::Remove => {
+                println!("Removing from working tree {:?}", key);
+                txn.remove(&key_bytes)?
+            }
         };
 
-        let key = ChunkDbKey::from_sled_key(&key_bytes);
         if backup_key_cache.keys.contains(&key) {
             // We only want the oldest changes for the backup version.
             continue;
         }
 
         if let Some(old_value) = old_value {
+            println!("Adding insert to reverse changes: {:?}", old_value);
             reverse_changes.push((key_bytes, unsafe {
                 ArchivedChangeIVec::<CompressedChunk>::new(old_value)
             }));
         } else {
+            println!(
+                "Adding removal to reverse changes: {:?}",
+                remove_bytes.as_bytes()
+            );
             reverse_changes.push((key_bytes, remove_bytes.clone()));
         }
     }

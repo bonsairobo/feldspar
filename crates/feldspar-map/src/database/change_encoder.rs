@@ -84,7 +84,7 @@ impl ChangeEncoder {
 ///
 /// Should be created with a [`ChangeEncoder`], which is guaranteed to drop duplicate changes on the same key, keeping only the
 /// latest changes.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct EncodedChanges<T> {
     pub changes: Vec<(IVec, ArchivedChangeIVec<T>)>,
 }
@@ -97,3 +97,37 @@ pub struct EncodedChanges<T> {
 /// By using the same format for values in both trees, we don't need to re-serialize them when moving any entry from the working
 /// tree to the backup tree.
 pub type ArchivedChangeIVec<T> = ArchivedIVec<Change<T>>;
+
+// ████████╗███████╗███████╗████████╗
+// ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
+//    ██║   █████╗  ███████╗   ██║
+//    ██║   ██╔══╝  ╚════██║   ██║
+//    ██║   ███████╗███████║   ██║
+//    ╚═╝   ╚══════╝╚══════╝   ╚═╝
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::archived_buf::ArchivedBuf;
+    use crate::Chunk;
+
+    use sled::IVec;
+
+    #[test]
+    fn deserialize_remove_bytes() {
+        // This needs to be 12! Leaving empty space at the end of the AlignedBytes will cause archive_root to fail.
+        let remove_bytes: ArchivedBuf<Change<CompressedChunk>, AlignedBytes<12>> =
+            unsafe { ArchivedBuf::new(Change::<CompressedChunk>::serialize_remove::<12>()) };
+        assert_eq!(remove_bytes.deserialize(), Change::Remove);
+    }
+
+    #[test]
+    fn deserialize_insert_bytes() {
+        let original = Change::Insert(Chunk::default().compress());
+        let serialized = unsafe {
+            ArchivedIVec::<Change<CompressedChunk>>::new(IVec::from(original.serialize().as_ref()))
+        };
+        let deserialized = serialized.deserialize();
+        assert_eq!(deserialized, original);
+    }
+}

@@ -2,12 +2,12 @@ use super::{ArchivedIVec, Change, ChunkDbKey, EncodedChanges, Version};
 use crate::{CompressedChunk, NoSharedAllocSerializer};
 
 use rkyv::ser::Serializer;
-use rkyv::{Archive, Serialize};
+use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::TransactionalTree;
 use sled::{transaction::UnabortableTransactionError, Tree};
 use std::collections::BTreeMap;
 
-#[derive(Archive, Eq, PartialEq, Serialize)]
+#[derive(Archive, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct VersionChanges {
     /// The full set of changes made between `parent_version` and this version.
     ///
@@ -69,6 +69,9 @@ pub fn remove_archived_version(
 mod tests {
     use super::*;
 
+    use crate::glam::IVec3;
+    use crate::Chunk;
+
     use rkyv::option::ArchivedOption;
     use sled::transaction::TransactionError;
 
@@ -78,22 +81,26 @@ mod tests {
         let tree = db.open_tree("mymap-changes").unwrap();
         let v0 = Version::new(0);
 
-        let result: Result<(), TransactionError> = tree.transaction(|txn| {
+        let mut original_changes = BTreeMap::new();
+        original_changes.insert(
+            ChunkDbKey::new(1, IVec3::ZERO.into()),
+            Change::Insert(Chunk::default().compress()),
+        );
+        original_changes.insert(ChunkDbKey::new(2, IVec3::ZERO.into()), Change::Remove);
+        let changes = VersionChanges::new(original_changes.clone());
+
+        let changes: Result<VersionChanges, TransactionError> = tree.transaction(|txn| {
             assert!(
                 remove_archived_version(txn, v0).unwrap()
                     == ArchivedOption::<ArchivedIVec<VersionChanges>>::None
             );
 
-            let changes = VersionChanges::new(BTreeMap::new());
             archive_version(txn, v0, &changes).unwrap();
 
-            let owned_archive = remove_archived_version(txn, Version::new(0))
-                .unwrap()
-                .unwrap();
-            assert!(owned_archive.as_ref().changes.is_empty());
+            let owned_archive = remove_archived_version(txn, Version::new(0))?.unwrap();
 
-            Ok(())
+            Ok(owned_archive.deserialize())
         });
-        result.unwrap();
+        assert_eq!(changes.unwrap(), VersionChanges::new(original_changes));
     }
 }

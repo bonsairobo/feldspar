@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 ///
 /// Note: This is not intended for use with archived structures that utilize shared memory like `ArchivedRc` and
 /// `ArchivedArc`.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArchivedBuf<T, B> {
     bytes: B,
     marker: PhantomData<T>,
@@ -32,6 +32,10 @@ where
         T::Archived: Deserialize<T, Infallible>,
     {
         self.as_ref().deserialize(&mut Infallible).unwrap()
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        self.bytes.as_ref()
     }
 
     pub fn take_bytes(self) -> B {

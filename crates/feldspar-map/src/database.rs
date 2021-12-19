@@ -130,6 +130,7 @@ impl MapDb {
         &mut self,
         changes: EncodedChanges<CompressedChunk>,
     ) -> Result<(), TransactionError> {
+        println!("Writing to {:?}", self.cached_meta.working_version);
         let Self {
             working_tree,
             backup_tree,
@@ -157,8 +158,12 @@ impl MapDb {
     }
 
     /// Reads the compressed bytes of the chunk at `key` for the working version.
-    pub fn read_working_version(&self, key: ChunkDbKey) -> Result<Option<IVec>, sled::Error> {
-        self.working_tree.get(IVec::from(&key.into_sled_key()))
+    pub fn read_working_version(
+        &self,
+        key: ChunkDbKey,
+    ) -> Result<Option<ArchivedChangeIVec<CompressedChunk>>, sled::Error> {
+        let bytes = self.working_tree.get(IVec::from(&key.into_sled_key()))?;
+        Ok(bytes.map(|b| unsafe { ArchivedIVec::<Change<CompressedChunk>>::new(b) }))
     }
 
     /// Archives the backup tree entries into a [`VersionChanges`] that gets serialized and stored in the version change tree
@@ -170,6 +175,8 @@ impl MapDb {
         if self.backup_key_cache.keys.is_empty() {
             return Ok(());
         }
+
+        println!("Committing {:?}", self.cached_meta.working_version);
 
         let new_meta = (
             &self.backup_tree,
@@ -241,6 +248,10 @@ impl MapDb {
                     let empty_backup_keys = BackupKeyCache {
                         keys: BTreeSet::default(),
                     };
+                    println!(
+                        "Migrating from parent {:?} to parent {:?}",
+                        old_parent_version, new_parent_version
+                    );
                     for (&prev_version, &next_version) in path.path.iter().tuple_windows() {
                         if let Some(changes) = remove_archived_version(change_txn, next_version)? {
                             let mut encoder = ChangeEncoder::default();
@@ -251,13 +262,19 @@ impl MapDb {
                                 let change = change.deserialize(&mut Infallible).unwrap();
                                 encoder.add_compressed_change(key, change);
                             }
+                            println!("Re-applying archived version changes");
                             let reverse_changes = write_changes_to_working_tree(
                                 working_txn,
                                 &empty_backup_keys,
                                 encoder.encode(),
                             )?;
-                            println!("Archiving {:?} from working tree", prev_version);
-                            archive_version(change_txn, prev_version, &(&reverse_changes).into())?;
+                            println!("Encoded reverse changes: {:?}", reverse_changes);
+                            let prev_version_changes = VersionChanges::from(&reverse_changes);
+                            println!(
+                                "Archiving {:?} from working tree: {:?}",
+                                prev_version, prev_version_changes
+                            );
+                            archive_version(change_txn, prev_version, &prev_version_changes)?;
                         } else {
                             return abort(AbortReason::MissingVersionChanges);
                         }
@@ -291,6 +308,8 @@ mod tests {
     use crate::glam::IVec3;
     use crate::Chunk;
 
+    use rkyv::ser::{serializers::AllocSerializer, Serializer};
+
     #[test]
     fn write_and_read_changes_same_version() {
         let db = sled::Config::default().temporary(true).open().unwrap();
@@ -302,8 +321,10 @@ mod tests {
         map.write_working_version(encoder.encode()).unwrap();
 
         let chunk_compressed_bytes = map.read_working_version(chunk_key).unwrap().unwrap();
-        let chunk = Chunk::from_compressed_bytes(&chunk_compressed_bytes);
-        assert_eq!(chunk, Chunk::default());
+        assert_eq!(
+            chunk_compressed_bytes.deserialize(),
+            Change::Insert(Chunk::default().compress())
+        );
     }
 
     #[test]
@@ -334,6 +355,17 @@ mod tests {
 
     #[test]
     fn commit_multiple_versions_with_changes_and_branch() {
+        println!(
+            "Correct compressed chunk = {:?}",
+            Chunk::default().compress()
+        );
+        let mut serializer = AllocSerializer::<8192>::default();
+        serializer.serialize_value(&Change::Insert(Chunk::default().compress()));
+        println!(
+            "Correct compressed chunk insert = {:?}",
+            serializer.into_serializer().into_inner()
+        );
+
         let db = sled::Config::default().temporary(true).open().unwrap();
         let mut map = MapDb::open(&db, "mymap").unwrap();
 
@@ -370,31 +402,33 @@ mod tests {
 
         let value_bytes = map.read_working_version(chunk_key1).unwrap().unwrap();
         assert_eq!(
-            Chunk::from_compressed_bytes(value_bytes.as_ref()),
-            Chunk::default()
+            value_bytes.deserialize(),
+            Change::Insert(Chunk::default().compress())
         );
 
         // Commit changes to the branch.
-        let chunk_key2 = ChunkDbKey::new(1, IVec3::ZERO.into());
+        let chunk_key2 = ChunkDbKey::new(2, IVec3::ZERO.into());
         let mut encoder = ChangeEncoder::default();
         encoder.add_compressed_change(chunk_key2, Change::Insert(Chunk::default().compress()));
         map.write_working_version(encoder.encode()).unwrap();
+        let v2 = map.cached_meta().working_version;
         map.commit_working_version().unwrap();
 
         // Branch from a sibling version.
         map.branch_from_version(v1).unwrap();
-        assert_eq!(
-            map.read_working_version(chunk_key1),
-            Ok(Some(IVec::from(Chunk::default().compress().bytes)))
-        );
+        assert_eq!(map.read_working_version(chunk_key1), Ok(None));
         assert_eq!(map.read_working_version(chunk_key2).unwrap(), None);
 
         // And back.
-        map.branch_from_version(v1).unwrap();
-        assert_eq!(map.read_working_version(chunk_key1).unwrap(), None);
-        assert_eq!(
-            map.read_working_version(chunk_key2),
-            Ok(Some(IVec::from(Chunk::default().compress().bytes)))
-        );
+        let expected_change = Ok(Some(unsafe {
+            ArchivedChangeIVec::new(IVec::from(
+                Change::Insert(Chunk::default().compress())
+                    .serialize()
+                    .as_ref(),
+            ))
+        }));
+        map.branch_from_version(v2).unwrap();
+        assert_eq!(map.read_working_version(chunk_key1), expected_change);
+        assert_eq!(map.read_working_version(chunk_key2), expected_change);
     }
 }
