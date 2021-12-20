@@ -8,14 +8,13 @@ mod working_tree;
 
 pub use change_encoder::*;
 pub use chunk_key::ChunkDbKey;
+pub use version_change_tree::VersionChanges;
 
 use backup_tree::{
     clear_backup, commit_backup, open_backup_tree, write_changes_to_backup_tree, BackupKeyCache,
 };
 use meta_tree::{open_meta_tree, write_meta};
-use version_change_tree::{
-    archive_version, open_version_change_tree, remove_archived_version, VersionChanges,
-};
+use version_change_tree::{archive_version, open_version_change_tree, remove_archived_version};
 use version_graph_tree::{
     find_path_between_versions, link_version, open_version_graph_tree, VersionNode,
 };
@@ -54,8 +53,11 @@ impl Version {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AbortReason {
+    /// Failed to find a path from the one parent version to another.
     NoPathExists,
+    /// Failed to find a path from a version node to the root ancestor. (Missing link).
     NoPathExistsToRoot,
+    /// Tried to reference [`VersionChanges`] that don't exist in the change tree.
     MissingVersionChanges,
 }
 
@@ -76,7 +78,7 @@ pub enum AbortReason {
 /// ### Backup Tree
 ///
 /// As new changes are written, the old values are moved into the "backup tree." The backup tree is just a persistent buffer
-/// that eventually gets archived when the working version is cut.
+/// that eventually gets archived when the working version is committed.
 ///
 /// ### Version Tree
 ///

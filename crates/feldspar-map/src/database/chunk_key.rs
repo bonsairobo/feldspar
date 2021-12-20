@@ -10,8 +10,8 @@ use rkyv::{Archive, Deserialize, Serialize};
 )]
 #[archive_attr(derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord))]
 pub struct ChunkDbKey {
-    level: Level,
-    morton: Morton3i32,
+    pub level: Level,
+    pub morton: Morton3i32,
 }
 
 impl ChunkDbKey {

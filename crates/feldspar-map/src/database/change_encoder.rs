@@ -3,7 +3,7 @@ use crate::{CompressedChunk, NoSharedAllocSerializer, SmallKeyHashMap};
 
 use rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
-    AlignedBytes, AlignedVec, Archive, Deserialize, Serialize,
+    AlignedBytes, AlignedVec, Archive, Archived, Deserialize, Serialize,
 };
 use sled::IVec;
 
@@ -37,6 +37,18 @@ impl<T> Change<T> {
         let mut serializer = CoreSerializer::<N, 0>::default();
         serializer.serialize_value(&Change::<T>::Remove).unwrap();
         serializer.into_serializer().into_inner()
+    }
+}
+
+impl<T> ArchivedChange<T>
+where
+    T: Archive,
+{
+    pub fn get_insert_data(&self) -> Option<&Archived<T>> {
+        match self {
+            Self::Insert(data) => Some(data),
+            Self::Remove => None,
+        }
     }
 }
 
