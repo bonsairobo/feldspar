@@ -21,7 +21,7 @@ use version_graph_tree::{
 use working_tree::{open_working_tree, write_changes_to_working_tree};
 
 use crate::archived_buf::ArchivedBuf;
-use crate::CompressedChunk;
+use crate::chunk::CompressedChunk;
 
 use itertools::Itertools;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
@@ -306,8 +306,8 @@ impl MapDb {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chunk::Chunk;
     use crate::glam::IVec3;
-    use crate::Chunk;
 
     #[test]
     fn write_and_read_changes_same_version() {

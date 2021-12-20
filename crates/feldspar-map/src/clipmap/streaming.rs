@@ -1,8 +1,12 @@
 use super::ChunkClipMap;
 use crate::glam::{IVec3, Vec3A};
 use crate::{
-    chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent, visit_children, ChunkUnits,
-    Level, NodeLocation, Sphere, VoxelUnits,
+    clipmap::{Level, NodeLocation},
+    coordinates::{
+        chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent, visit_children,
+    },
+    geometry::Sphere,
+    units::*,
 };
 
 use float_ord::FloatOrd;

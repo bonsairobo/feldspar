@@ -1,4 +1,10 @@
-use crate::{chunk_min, chunk_extent_vec3a, Chunk, ChunkShape, PaletteId8, Sd8, CHUNK_SIZE, ChunkUnits, VoxelUnits};
+use crate::{
+    chunk::{Chunk, ChunkShape, CHUNK_SIZE},
+    coordinates::{chunk_extent_vec3a, chunk_min},
+    palette::PaletteId8,
+    sdf::Sd8,
+    units::*,
+};
 
 use grid_ray::GridRayIter3;
 use ilattice::glam::{IVec3, Vec3A};
@@ -130,7 +136,7 @@ impl Sphere {
 
 #[cfg(test)]
 mod test {
-    use crate::AMBIENT_SD8;
+    use crate::chunk::AMBIENT_SD8;
 
     use super::*;
 

@@ -1,5 +1,6 @@
 use super::{ArchivedIVec, ChunkDbKey};
-use crate::{CompressedChunk, NoSharedAllocSerializer, SmallKeyHashMap};
+use crate::chunk::CompressedChunk;
+use crate::{NoSharedAllocSerializer, SmallKeyHashMap};
 
 use rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
@@ -121,7 +122,7 @@ pub type ArchivedChangeIVec<T> = ArchivedIVec<Change<T>>;
 mod tests {
     use super::*;
     use crate::archived_buf::ArchivedBuf;
-    use crate::Chunk;
+    use crate::chunk::Chunk;
 
     use sled::IVec;
 

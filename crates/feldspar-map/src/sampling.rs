@@ -1,4 +1,4 @@
-use crate::{ChunkShape, PaletteIdChunk, SdfChunk, CHUNK_SHAPE_IVEC3};
+use crate::chunk::{ChunkShape, PaletteIdChunk, SdfChunk, CHUNK_SHAPE_IVEC3};
 
 use ilattice::glam::IVec3;
 use ilattice::prelude::Extent;

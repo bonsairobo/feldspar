@@ -1,5 +1,5 @@
 use crate::sampling::OctantKernel;
-use crate::{min_child_coords, NdView, PaletteId8, Sd8};
+use crate::{coordinates::min_child_coords, ndview::NdView, palette::PaletteId8, sdf::Sd8};
 
 use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
@@ -139,7 +139,7 @@ impl CompressedChunk {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{chunk_extent_from_min_ivec3, VoxelUnits};
+    use crate::{coordinates::chunk_extent_from_min_ivec3, units::VoxelUnits};
 
     #[test]
     fn compress_default_chunk() {

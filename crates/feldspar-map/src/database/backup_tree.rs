@@ -1,5 +1,5 @@
 use super::{AbortReason, ArchivedChangeIVec, ChunkDbKey, EncodedChanges, VersionChanges};
-use crate::CompressedChunk;
+use crate::chunk::CompressedChunk;
 
 use sled::transaction::{
     ConflictableTransactionError, TransactionalTree, UnabortableTransactionError,
@@ -73,8 +73,9 @@ mod tests {
     use sled::transaction::TransactionError;
 
     use super::*;
+    use crate::chunk::Chunk;
+    use crate::database::{Change, ChangeEncoder};
     use crate::glam::IVec3;
-    use crate::{Change, ChangeEncoder, Chunk};
 
     #[test]
     fn write_and_commit_backup() {

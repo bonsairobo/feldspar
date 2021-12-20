@@ -2,7 +2,7 @@ use super::{
     ArchivedChange, ArchivedChangeIVec, ArchivedIVec, BackupKeyCache, Change, ChunkDbKey,
     EncodedChanges,
 };
-use crate::CompressedChunk;
+use crate::chunk::CompressedChunk;
 
 use sled::transaction::{TransactionalTree, UnabortableTransactionError};
 use sled::{IVec, Tree};

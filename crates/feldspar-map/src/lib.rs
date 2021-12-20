@@ -57,30 +57,20 @@
 //! other Bevy ECS systems to both edit and query the currently loaded map without having to worry about the details of
 //! streaming data and managing transactions.
 
-mod allocator;
 mod archived_buf;
 mod bitset;
-mod chunk;
-mod clipmap;
-mod coordinates;
-mod database;
-mod geometry;
-mod ndview;
-mod palette;
-mod sampling;
-mod sdf;
-mod units;
 
-pub use allocator::*;
-pub use chunk::*;
-pub use clipmap::*;
-pub use coordinates::*;
-pub use database::*;
-pub use geometry::*;
-pub use ndview::*;
-pub use palette::*;
-pub use sdf::*;
-pub use units::*;
+pub mod allocator;
+pub mod chunk;
+pub mod clipmap;
+pub mod coordinates;
+pub mod database;
+pub mod geometry;
+pub mod ndview;
+pub mod palette;
+pub mod sampling;
+pub mod sdf;
+pub mod units;
 
 #[cfg(feature = "bevy")]
 mod plugin;

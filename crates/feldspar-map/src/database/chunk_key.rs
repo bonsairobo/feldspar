@@ -1,5 +1,5 @@
+use crate::clipmap::Level;
 use crate::glam::IVec3;
-use crate::Level;
 
 use core::ops::RangeInclusive;
 use ilattice::prelude::{Bounded, Extent, Morton3i32};

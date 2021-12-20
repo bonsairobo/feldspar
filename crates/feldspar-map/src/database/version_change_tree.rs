@@ -1,5 +1,5 @@
 use super::{ArchivedIVec, Change, ChunkDbKey, EncodedChanges, Version};
-use crate::{CompressedChunk, NoSharedAllocSerializer};
+use crate::{chunk::CompressedChunk, NoSharedAllocSerializer};
 
 use rkyv::ser::Serializer;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -69,8 +69,8 @@ pub fn remove_archived_version(
 mod tests {
     use super::*;
 
+    use crate::chunk::Chunk;
     use crate::glam::IVec3;
-    use crate::Chunk;
 
     use rkyv::option::ArchivedOption;
     use sled::transaction::TransactionError;

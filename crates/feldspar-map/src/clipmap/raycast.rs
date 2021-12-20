@@ -1,5 +1,10 @@
-use crate::glam::IVec3;
-use crate::{chunk_extent_at_level_vec3a, ChunkClipMap, Level, NodePtr, Ray, ChunkUnits, VoxelUnits};
+use crate::{
+    clipmap::{ChunkClipMap, Level, NodePtr},
+    coordinates::chunk_extent_at_level_vec3a,
+    geometry::Ray,
+    glam::IVec3,
+    units::*,
+};
 
 use float_ord::FloatOrd;
 use std::collections::BinaryHeap;
@@ -13,7 +18,9 @@ impl ChunkClipMap {
         let mut heap = BinaryHeap::new();
         for (root_ptr, root_coords) in self.octree.iter_roots() {
             let extent = chunk_extent_at_level_vec3a(root_ptr.level(), ChunkUnits(root_coords));
-            if let VoxelUnits(Some(time_window)) = VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e)) {
+            if let VoxelUnits(Some(time_window)) =
+                VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e))
+            {
                 heap.push(RayTraceHeapElem {
                     ptr: root_ptr,
                     coords: root_coords,
@@ -38,8 +45,11 @@ impl ChunkClipMap {
                 elem.coords,
                 |child_ptr, child_coords| {
                     is_leaf = false;
-                    let extent = chunk_extent_at_level_vec3a(child_ptr.level(), ChunkUnits(child_coords));
-                    if let VoxelUnits(Some(time_window)) = VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e)) {
+                    let extent =
+                        chunk_extent_at_level_vec3a(child_ptr.level(), ChunkUnits(child_coords));
+                    if let VoxelUnits(Some(time_window)) =
+                        VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e))
+                    {
                         if time_window[0] > earliest_entrance_time {
                             // Don't bother visiting children, they couldn't possibly have an earlier time if the parent
                             // doesn't.

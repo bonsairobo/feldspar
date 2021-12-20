@@ -1,6 +1,6 @@
 use crate::{
     bitset::{AtomicBitset8, Bitset8},
-    Chunk, CompressedChunk,
+    chunk::{Chunk, CompressedChunk},
 };
 
 use either::Either;
@@ -246,7 +246,7 @@ impl<'a> AsRef<Chunk> for DecompressedChunk<'a> {
 
 /// This slot type is nearly equivalent to this enum:
 /// ```
-/// # use feldspar_map::{Chunk, CompressedChunk};
+/// # use feldspar_map::chunk::{Chunk, CompressedChunk};
 /// enum ChunkSlot {
 ///     Empty,
 ///     Compressed(CompressedChunk),

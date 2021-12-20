@@ -1,5 +1,10 @@
 use super::*;
-use crate::{ChildIndex, Sphere, CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_VEC3A};
+use crate::{
+    chunk::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3, CHUNK_SHAPE_VEC3A},
+    clipmap::{ChildIndex, Level},
+    geometry::Sphere,
+    units::*,
+};
 
 use grid_tree::{BranchShape, OctreeShapeI32};
 use ilattice::glam::{IVec3, Vec3A};
