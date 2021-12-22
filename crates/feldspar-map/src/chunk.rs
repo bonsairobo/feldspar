@@ -69,6 +69,12 @@ impl Chunk {
         NdView::new(&mut self.palette_ids, ChunkShape {})
     }
 
+    pub fn set_voxel(&mut self, offset: IVec3, palette_id: PaletteId8, sdf: Sd8) {
+        let index = ChunkShape::linearize(offset.to_array()) as usize;
+        self.sdf[index] = sdf;
+        self.palette_ids[index] = palette_id;
+    }
+
     pub fn compress(&self) -> CompressedChunk {
         let mut encoder = FrameEncoder::new(Vec::new());
         let mut reader = bytes_of(self);

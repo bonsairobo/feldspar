@@ -71,6 +71,8 @@ pub mod palette;
 pub mod sampling;
 pub mod sdf;
 pub mod units;
+pub mod vox;
+pub mod voxel_attributes;
 
 #[cfg(feature = "bevy")]
 mod plugin;

@@ -22,6 +22,9 @@ use working_tree::{open_working_tree, write_changes_to_working_tree};
 
 use crate::archived_buf::ArchivedBuf;
 use crate::chunk::CompressedChunk;
+use crate::clipmap::Level;
+use crate::units::*;
+use crate::vox::convert_vox_model_to_chunks;
 
 use itertools::Itertools;
 use rkyv::{Archive, Deserialize, Infallible, Serialize};
@@ -121,6 +124,17 @@ impl MapDb {
             backup_key_cache,
             cached_meta,
         })
+    }
+
+    /// Writes all data from `model` into `target_lod` of the working version.
+    pub fn import_vox(&mut self, target_lod: Level, model: &vox_format::types::Model) -> Result<(), TransactionError> {
+        let chunks = convert_vox_model_to_chunks(model);
+        // Write the chunks into the database.
+        let mut encoder = ChangeEncoder::default();
+        for (ChunkUnits(chunk_coords), chunk) in chunks.into_iter() {
+            encoder.add_compressed_change(ChunkDbKey::new(target_lod, chunk_coords.into()), Change::Insert(chunk.compress()));
+        }
+        self.write_working_version(encoder.encode())
     }
 
     pub fn cached_meta(&self) -> &MapDbMetadata {
