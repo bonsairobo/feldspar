@@ -1,7 +1,7 @@
 use crate::sampling::OctantKernel;
 use crate::{coordinates::min_child_coords, ndview::NdView, palette::PaletteId8, sdf::Sd8};
 
-use bytemuck::{bytes_of_mut, cast_slice, Pod, Zeroable};
+use bytemuck::{bytes_of, bytes_of_mut, Pod, Zeroable};
 use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
@@ -71,10 +71,8 @@ impl Chunk {
 
     pub fn compress(&self) -> CompressedChunk {
         let mut encoder = FrameEncoder::new(Vec::new());
-        let mut sdf_reader = cast_slice(self.sdf.as_ref());
-        io::copy(&mut sdf_reader, &mut encoder).unwrap();
-        let mut palette_reader = cast_slice(self.palette_ids.as_ref());
-        io::copy(&mut palette_reader, &mut encoder).unwrap();
+        let mut reader = bytes_of(self);
+        io::copy(&mut reader, &mut encoder).unwrap();
         CompressedChunk {
             bytes: encoder.finish().unwrap().into_boxed_slice(),
         }
