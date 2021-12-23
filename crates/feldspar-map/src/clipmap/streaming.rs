@@ -102,17 +102,20 @@ impl ChunkClipMap {
                     continue;
                 }
 
-                // Visit all children coordinates that need loading, regardless of which child nodes exist.
-                visit_children(coordinates.into_inner(), |child_index, child_coords| {
-                    if node.state().descendant_is_loading.bit_is_set(child_index) {
-                        candidate_heap.push(LoadSearchHeapElem::new(
-                            child_level,
-                            ChunkUnits(child_coords),
-                            Some(ptr),
-                            observer,
-                        ));
-                    }
-                })
+                // If we're on a nonzero level, visit all children that need loading, regardless of which child nodes exist.
+                if let Some(child_pointers) = self.octree.child_pointers(ptr) {
+                    visit_children(coordinates.into_inner(), |child_index, child_coords| {
+                        if node.state().descendant_is_loading.bit_is_set(child_index) {
+                            let child_ptr = child_pointers.get_child(child_index);
+                            candidate_heap.push(LoadSearchHeapElem::new(
+                                child_level,
+                                ChunkUnits(child_coords),
+                                child_ptr,
+                                observer,
+                            ));
+                        }
+                    })
+                }
             } else {
                 // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be
                 // loaded.
@@ -128,7 +131,10 @@ impl ChunkClipMap {
         }
     }
 
-    /// Searches for nodes whose render detail should change.
+    /// Searches for up to `budget` nodes whose render detail should change.
+    ///
+    /// This only includes nodes whose entire "chunk neighborhood" is loaded, since we need to reference voxel neighborhoods to
+    /// generate correct meshes.
     pub fn render_lod_changes(
         &self,
         budget: usize,
