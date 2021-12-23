@@ -1,9 +1,9 @@
 use super::{AbortReason, ArchivedIVec, Version};
-
-use rkyv::{
+use crate::core::rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
     AlignedBytes, Archive, Deserialize, Serialize,
 };
+
 use sled::{
     transaction::{
         abort, ConflictableTransactionError, TransactionalTree, UnabortableTransactionError,
@@ -12,6 +12,7 @@ use sled::{
 };
 
 #[derive(Archive, Debug, Deserialize, Serialize)]
+#[archive(crate = "crate::core::rkyv")]
 pub struct VersionNode {
     /// The version immediately before this one.
     pub parent_version: Option<Version>,

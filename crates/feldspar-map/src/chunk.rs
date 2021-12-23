@@ -1,12 +1,14 @@
 use crate::sampling::OctantKernel;
-use crate::{coordinates::min_child_coords, ndview::NdView, palette::PaletteId8, sdf::Sd8};
+use crate::{coordinates::*, ndview::NdView, palette::PaletteId8, sdf::Sd8, units::*};
+use crate::core::geometry::Ray;
+use crate::core::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
+use crate::core::rkyv::{Archive, Deserialize, Serialize};
+use crate::core::static_assertions::const_assert_eq;
 
 use bytemuck::{bytes_of, bytes_of_mut, Pod, Zeroable};
-use ilattice::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
+use grid_ray::GridRayIter3;
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
 use ndshape::{ConstPow2Shape3i32, ConstShape};
-use rkyv::{Archive, Deserialize, Serialize};
-use static_assertions::const_assert_eq;
 use std::io;
 use std::mem;
 
@@ -115,9 +117,57 @@ impl Chunk {
         // Palette IDs are downsampled as the mode of the 8 children.
         kernel.downsample_labels(&self.palette_ids, dst_offset, &mut parent_chunk.palette_ids);
     }
+
+    /// Visit every voxel in `chunk` that intersects the ray. Return `false` to stop the traversal.
+    pub fn ray_intersections(
+        &self,
+        chunk_coords: ChunkUnits<IVec3>,
+        ray: &Ray,
+        mut visitor: impl FnMut(f32, IVec3, Sd8, PaletteId8) -> bool,
+    ) {
+        let VoxelUnits(chunk_aabb) = chunk_extent_vec3a(chunk_coords);
+        if let Some([t_enter_chunk, t_exit_chunk]) = ray.cast_at_extent(chunk_aabb) {
+            // Nudge the start and end a little bit to be sure we stay in the chunk.
+            let duration_inside_chunk = t_exit_chunk - t_enter_chunk;
+            let nudge_duration = 0.000001 * duration_inside_chunk;
+            let t_nudge_start = t_enter_chunk + nudge_duration;
+            let nudge_start = ray.position_at(t_nudge_start);
+
+            if !chunk_aabb.contains(nudge_start) {
+                return;
+            }
+
+            let VoxelUnits(chunk_min) = chunk_min(chunk_coords);
+            let nudge_t_max = t_exit_chunk - nudge_duration;
+            let iter = GridRayIter3::new(nudge_start, ray.velocity());
+            for (t_enter, p) in iter {
+                // We technically "advanced the clock" by t_nudge_start before we started this iterator.
+                let actual_t_enter = t_enter + t_nudge_start;
+                if actual_t_enter > nudge_t_max {
+                    break;
+                }
+                let offset = p - chunk_min;
+                let index = ChunkShape::linearize(offset.to_array()) as usize;
+                if index >= CHUNK_SIZE {
+                    // Floating Point Paranoia: Just avoid panicking from out-of-bounds access at all costs.
+                    // TODO: log warning!
+                    break;
+                }
+                if !visitor(
+                    actual_t_enter,
+                    p,
+                    self.sdf[index],
+                    self.palette_ids[index],
+                ) {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 #[derive(Archive, Clone, Deserialize, Debug, Eq, PartialEq, Serialize)]
+#[archive(crate = "crate::core::rkyv")]
 pub struct CompressedChunk {
     pub bytes: Box<[u8]>,
 }
@@ -143,7 +193,7 @@ impl CompressedChunk {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{coordinates::chunk_extent_from_min_ivec3, units::VoxelUnits};
+    use crate::{chunk::AMBIENT_SD8, coordinates::chunk_extent_from_min_ivec3, units::VoxelUnits};
 
     #[test]
     fn compress_default_chunk() {
@@ -172,5 +222,94 @@ mod test {
         let compression_ratio = compressed.bytes.len() as f32 / (mem::size_of::<Chunk>() as f32);
         assert!(compression_ratio < 0.19, "{}", compression_ratio);
         assert_eq!(compressed.decompress(), chunk);
+    }
+
+    #[test]
+    fn ray_intersections_pass_through() {
+        let ray = Ray::new(Vec3A::new(-0.5, 0.5, 0.5), Vec3A::new(1.0, 0.0, 0.0));
+        let chunk = Chunk::default();
+        let chunk_coords = ChunkUnits(IVec3::ZERO);
+
+        let [t_chunk_enter, t_chunk_exit] = ray
+            .cast_at_extent(chunk_extent_vec3a(chunk_coords).into_inner())
+            .unwrap();
+
+        let mut visited_coords = Vec::new();
+        chunk.ray_intersections(chunk_coords, &ray, |t_enter, coords, sdf, palette_id| {
+            assert_eq!(sdf, AMBIENT_SD8);
+            assert_eq!(palette_id, 0);
+            assert!(t_enter >= t_chunk_enter);
+            assert!(t_enter < t_chunk_exit);
+            visited_coords.push(coords);
+            true
+        });
+
+        assert_eq!(
+            visited_coords.as_slice(),
+            &[
+                IVec3::new(0, 0, 0),
+                IVec3::new(1, 0, 0),
+                IVec3::new(2, 0, 0),
+                IVec3::new(3, 0, 0),
+                IVec3::new(4, 0, 0),
+                IVec3::new(5, 0, 0),
+                IVec3::new(6, 0, 0),
+                IVec3::new(7, 0, 0),
+                IVec3::new(8, 0, 0),
+                IVec3::new(9, 0, 0),
+                IVec3::new(10, 0, 0),
+                IVec3::new(11, 0, 0),
+                IVec3::new(12, 0, 0),
+                IVec3::new(13, 0, 0),
+                IVec3::new(14, 0, 0),
+                IVec3::new(15, 0, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn ray_intersections_stop_on_voxel() {
+        let ray = Ray::new(Vec3A::ONE, Vec3A::new(1.0, 1.0, 1.0));
+        let mut chunk = Chunk::default();
+        let chunk_coords = ChunkUnits(IVec3::ZERO);
+        let VoxelUnits(chunk_min) = chunk_min(chunk_coords);
+
+        // Mark one voxel in the middle to prove that we can hit it and stop.
+        chunk.palette_view_mut()[IVec3::new(7, 7, 7) - chunk_min] = 1;
+
+        let mut visited_coords = Vec::new();
+        chunk.ray_intersections(chunk_coords, &ray, |_t_enter, coords, sdf, palette_id| {
+            assert_eq!(sdf, AMBIENT_SD8);
+            visited_coords.push(coords);
+            palette_id == 0
+        });
+
+        assert_eq!(
+            visited_coords.as_slice(),
+            &[
+                IVec3::new(0, 0, 0),
+                IVec3::new(0, 0, 1),
+                IVec3::new(0, 1, 1),
+                IVec3::new(1, 1, 1),
+                IVec3::new(1, 1, 2),
+                IVec3::new(1, 2, 2),
+                IVec3::new(2, 2, 2),
+                IVec3::new(2, 2, 3),
+                IVec3::new(2, 3, 3),
+                IVec3::new(3, 3, 3),
+                IVec3::new(3, 3, 4),
+                IVec3::new(3, 4, 4),
+                IVec3::new(4, 4, 4),
+                IVec3::new(4, 4, 5),
+                IVec3::new(4, 5, 5),
+                IVec3::new(5, 5, 5),
+                IVec3::new(5, 5, 6),
+                IVec3::new(5, 6, 6),
+                IVec3::new(6, 6, 6),
+                IVec3::new(6, 6, 7),
+                IVec3::new(6, 7, 7),
+                IVec3::new(7, 7, 7),
+            ]
+        );
     }
 }

@@ -20,14 +20,14 @@ use version_graph_tree::{
 };
 use working_tree::{open_working_tree, write_changes_to_working_tree};
 
-use crate::archived_buf::ArchivedBuf;
+use crate::core::archived_buf::ArchivedBuf;
+use crate::core::rkyv::{Archive, Deserialize, Infallible, Serialize};
 use crate::chunk::CompressedChunk;
 use crate::clipmap::Level;
 use crate::units::*;
 use crate::vox::convert_vox_model_to_chunks;
 
 use itertools::Itertools;
-use rkyv::{Archive, Deserialize, Infallible, Serialize};
 use sled::transaction::{abort, TransactionError};
 use sled::{IVec, Transactional, Tree};
 use std::collections::BTreeSet;
@@ -39,6 +39,7 @@ type ArchivedIVec<T> = ArchivedBuf<T, IVec>;
 #[derive(
     Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, PartialOrd, Ord, Serialize,
 )]
+#[archive(crate = "crate::core::rkyv")]
 #[archive_attr(derive(Debug, Eq, PartialEq, PartialOrd, Ord))]
 pub struct Version {
     pub number: u64,
@@ -321,7 +322,7 @@ impl MapDb {
 mod tests {
     use super::*;
     use crate::chunk::Chunk;
-    use crate::glam::IVec3;
+    use crate::core::glam::IVec3;
 
     #[test]
     fn write_and_read_changes_same_version() {

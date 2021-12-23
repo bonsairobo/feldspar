@@ -1,7 +1,7 @@
-use crate::SmallKeyHashMap;
+use crate::core::SmallKeyHashMap;
+use crate::core::glam::IVec3;
 use crate::chunk::Chunk;
 use crate::coordinates::*;
-use crate::glam::IVec3;
 use crate::sdf::Sd8;
 use crate::units::*;
 

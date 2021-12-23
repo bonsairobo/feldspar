@@ -6,7 +6,9 @@ use crate::coordinates::{
     ancestor_extent, chunk_bounding_sphere, chunk_extent_at_level_ivec3, descendant_extent,
     in_chunk_extent, sphere_intersecting_ancestor_chunk_extent,
 };
-use crate::geometry::Sphere;
+use crate::core::geometry::Sphere;
+use crate::core::glam::IVec3;
+use crate::core::ilattice::prelude::Extent;
 use crate::units::{ChunkUnits, VoxelUnits};
 
 pub use grid_tree::{ChildIndex, FillCommand, Level, NodeKey, NodePtr, SlotState, VisitCommand};
@@ -14,8 +16,6 @@ pub use node::*;
 pub use streaming::*;
 
 use grid_tree::OctreeI32;
-use ilattice::glam::IVec3;
-use ilattice::prelude::Extent;
 
 pub const CHILDREN: ChildIndex = OctreeI32::<()>::CHILDREN;
 
@@ -201,11 +201,13 @@ impl ChunkClipMap {
 mod test {
     use super::node::NodeState;
     use super::*;
-    use crate::glam::Vec3A;
+    use crate::core::{
+        glam::Vec3A,
+        geometry::Ray,
+    };
     use crate::{
         chunk::Chunk,
         coordinates::{chunk_extent_from_min_ivec3, in_chunk_extent},
-        geometry::Ray,
         ndview::NdView,
     };
 

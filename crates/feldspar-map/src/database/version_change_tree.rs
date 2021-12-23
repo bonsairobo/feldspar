@@ -1,13 +1,15 @@
 use super::{ArchivedIVec, Change, ChunkDbKey, EncodedChanges, Version};
-use crate::{chunk::CompressedChunk, NoSharedAllocSerializer};
+use crate::chunk::CompressedChunk;
+use crate::core::NoSharedAllocSerializer;
+use crate::core::rkyv::ser::Serializer;
+use crate::core::rkyv::{Archive, Deserialize, Serialize};
 
-use rkyv::ser::Serializer;
-use rkyv::{Archive, Deserialize, Serialize};
 use sled::transaction::TransactionalTree;
 use sled::{transaction::UnabortableTransactionError, Tree};
 use std::collections::BTreeMap;
 
 #[derive(Archive, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[archive(crate = "crate::core::rkyv")]
 pub struct VersionChanges {
     /// The full set of changes made between `parent_version` and this version.
     ///
@@ -70,9 +72,9 @@ mod tests {
     use super::*;
 
     use crate::chunk::Chunk;
-    use crate::glam::IVec3;
+    use crate::core::glam::IVec3;
+    use crate::core::rkyv::option::ArchivedOption;
 
-    use rkyv::option::ArchivedOption;
     use sled::transaction::TransactionError;
 
     #[test]

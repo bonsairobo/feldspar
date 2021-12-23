@@ -1,4 +1,5 @@
-use ilattice::glam::{IVec2, IVec3};
+use crate::core::glam::{IVec2, IVec3};
+
 use ndshape::Shape;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};

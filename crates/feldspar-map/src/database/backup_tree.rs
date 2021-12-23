@@ -74,8 +74,8 @@ mod tests {
 
     use super::*;
     use crate::chunk::Chunk;
+    use crate::core::glam::IVec3;
     use crate::database::{Change, ChangeEncoder};
-    use crate::glam::IVec3;
 
     #[test]
     fn write_and_commit_backup() {

@@ -1,9 +1,9 @@
 use super::{AbortReason, ArchivedIVec, Version};
-
-use rkyv::{
+use crate::core::rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
     Archive, Deserialize, Serialize,
 };
+
 use sled::{
     transaction::{TransactionError, TransactionalTree, UnabortableTransactionError},
     Tree,
@@ -12,6 +12,7 @@ use sled::{
 const META_KEY: &'static str = "META";
 
 #[derive(Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[archive(crate = "crate::core::rkyv")]
 #[archive_attr(derive(Eq, PartialEq))]
 pub struct MapDbMetadata {
     pub grandparent_version: Option<Version>,

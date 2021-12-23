@@ -1,0 +1,12 @@
+[package]
+name = "feldspar-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ahash = "0.7"
+approx = "0.5"
+ilattice = { git = "https://github.com/bonsairobo/ilattice-rs", branch = "main", features = ["morton-encoding", "rkyv"] }
+rkyv = { version = "0.7", features = ["validation"] }
+slab = "0.4"
+static_assertions = "1.1"

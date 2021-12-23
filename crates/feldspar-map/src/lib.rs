@@ -57,15 +57,10 @@
 //! other Bevy ECS systems to both edit and query the currently loaded map without having to worry about the details of
 //! streaming data and managing transactions.
 
-mod archived_buf;
-mod bitset;
-
-pub mod allocator;
 pub mod chunk;
 pub mod clipmap;
 pub mod coordinates;
 pub mod database;
-pub mod geometry;
 pub mod ndview;
 pub mod palette;
 pub mod sampling;
@@ -79,23 +74,6 @@ mod plugin;
 #[cfg(feature = "bevy")]
 pub use plugin::*;
 
-// Re-exports.
-pub use ilattice;
-pub use ilattice::glam;
+// Private aliases.
+use feldspar_core as core;
 
-use ahash::{AHashMap, AHashSet};
-use rkyv::{
-    ser::serializers::{
-        AlignedSerializer, AllocScratch, CompositeSerializer, FallbackScratch, HeapScratch,
-    },
-    AlignedVec, Infallible,
-};
-
-type SmallKeyHashMap<K, V> = AHashMap<K, V>;
-type SmallKeyHashSet<K> = AHashSet<K>;
-
-pub type NoSharedAllocSerializer<const N: usize> = CompositeSerializer<
-    AlignedSerializer<AlignedVec>,
-    FallbackScratch<HeapScratch<N>, AllocScratch>,
-    Infallible,
->;

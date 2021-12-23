@@ -1,13 +1,14 @@
 use crate::clipmap::Level;
-use crate::glam::IVec3;
+use crate::core::glam::IVec3;
+use crate::core::ilattice::prelude::{Bounded, Extent, Morton3i32};
+use crate::core::rkyv::{Archive, Deserialize, Serialize};
 
 use core::ops::RangeInclusive;
-use ilattice::prelude::{Bounded, Extent, Morton3i32};
-use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(
     Archive, Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize,
 )]
+#[archive(crate = "crate::core::rkyv")]
 #[archive_attr(derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord))]
 pub struct ChunkDbKey {
     pub level: Level,

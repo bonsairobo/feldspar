@@ -1,10 +1,10 @@
 use crate::{
     clipmap::{ChunkClipMap, Level, NodePtr},
     coordinates::chunk_extent_at_level_vec3a,
-    geometry::Ray,
-    glam::IVec3,
     units::*,
 };
+use crate::core::geometry::Ray;
+use crate::core::glam::IVec3;
 
 use float_ord::FloatOrd;
 use std::collections::BinaryHeap;

@@ -1,14 +1,15 @@
 use super::{ArchivedIVec, ChunkDbKey};
 use crate::chunk::CompressedChunk;
-use crate::{NoSharedAllocSerializer, SmallKeyHashMap};
-
-use rkyv::{
+use crate::core::{NoSharedAllocSerializer, SmallKeyHashMap};
+use crate::core::rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
     AlignedBytes, AlignedVec, Archive, Archived, Deserialize, Serialize,
 };
+
 use sled::IVec;
 
 #[derive(Archive, Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[archive(crate = "crate::core::rkyv")]
 pub enum Change<T> {
     Insert(T),
     Remove,
@@ -121,8 +122,8 @@ pub type ArchivedChangeIVec<T> = ArchivedIVec<Change<T>>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::archived_buf::ArchivedBuf;
     use crate::chunk::Chunk;
+    use crate::core::archived_buf::ArchivedBuf;
 
     use sled::IVec;
 

@@ -1,14 +1,13 @@
-use super::*;
 use crate::{
     chunk::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3, CHUNK_SHAPE_VEC3A},
     clipmap::{ChildIndex, Level},
-    geometry::Sphere,
     units::*,
 };
+use crate::core::geometry::Sphere;
+use crate::core::glam::{IVec3, Vec3A};
+use crate::core::ilattice::prelude::Extent;
 
 use grid_tree::{BranchShape, OctreeShapeI32};
-use ilattice::glam::{IVec3, Vec3A};
-use ilattice::prelude::Extent;
 
 pub fn chunk_extent_from_min_ivec3(min: VoxelUnits<IVec3>) -> VoxelUnits<Extent<IVec3>> {
     min.map(|m| Extent::from_min_and_shape(m, CHUNK_SHAPE_IVEC3))

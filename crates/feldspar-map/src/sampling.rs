@@ -1,7 +1,7 @@
 use crate::chunk::{ChunkShape, PaletteIdChunk, SdfChunk, CHUNK_SHAPE_IVEC3};
 
-use ilattice::glam::IVec3;
-use ilattice::prelude::Extent;
+use crate::core::glam::IVec3;
+use crate::core::ilattice::prelude::Extent;
 use ndshape::ConstShape;
 use std::mem;
 
