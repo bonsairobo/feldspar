@@ -16,6 +16,10 @@
 //!
 //! # Project Structure
 //!
+//! ## Contributing
+//!
+//! Please see [CONTRIBUTING.md](https://github.com/bonsairobo/feldspar/blob/main/CONTRIBUTING.md).
+//!
 //! ## Crates
 //!
 //! ![crates](assets/crates.png)

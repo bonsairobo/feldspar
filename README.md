@@ -18,6 +18,10 @@ Rather it has an opinionated data model to achieve specific goals like:
 
 ## Project Structure
 
+### Contributing
+
+Please see [CONTRIBUTING.md](https://github.com/bonsairobo/feldspar/blob/main/CONTRIBUTING.md).
+
 ### Crates
 
 ![crates](assets/crates.png)
