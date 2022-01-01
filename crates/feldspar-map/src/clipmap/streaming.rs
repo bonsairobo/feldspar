@@ -59,10 +59,10 @@ impl ChunkClipMap {
         let mut candidate_heap = BinaryHeap::new();
         let mut num_load_slots = 0;
 
-        for (root_ptr, root_coords) in self.octree.iter_roots() {
+        for (root_key, root_node) in self.octree.iter_roots() {
             candidate_heap.push(LoadSearchHeapElem::new(
-                root_ptr.level(),
-                ChunkUnits(root_coords),
+                root_key.level,
+                ChunkUnits(root_key.coordinates),
                 None,
                 observer,
             ));

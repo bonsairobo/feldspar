@@ -1,10 +1,10 @@
+use crate::core::geometry::Ray;
+use crate::core::glam::IVec3;
 use crate::{
     clipmap::{ChunkClipMap, Level, NodePtr},
     coordinates::chunk_extent_at_level_vec3a,
     units::*,
 };
-use crate::core::geometry::Ray;
-use crate::core::glam::IVec3;
 
 use float_ord::FloatOrd;
 use std::collections::BinaryHeap;
@@ -16,14 +16,15 @@ impl ChunkClipMap {
         min_level: Level,
     ) -> Option<(NodePtr, IVec3, [f32; 2])> {
         let mut heap = BinaryHeap::new();
-        for (root_ptr, root_coords) in self.octree.iter_roots() {
-            let extent = chunk_extent_at_level_vec3a(root_ptr.level(), ChunkUnits(root_coords));
+        for (root_key, root_node) in self.octree.iter_roots() {
+            let extent =
+                chunk_extent_at_level_vec3a(root_key.level, ChunkUnits(root_key.coordinates));
             if let VoxelUnits(Some(time_window)) =
                 VoxelUnits::map2(ray, extent, |r, e| r.cast_at_extent(e))
             {
                 heap.push(RayTraceHeapElem {
-                    ptr: root_ptr,
-                    coords: root_coords,
+                    ptr: NodePtr::new(root_key.level, root_node.self_ptr),
+                    coords: root_key.coordinates,
                     time_window,
                 });
             }

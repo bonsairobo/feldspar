@@ -69,8 +69,9 @@ impl ChunkClipMap {
 
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
-            if let FillCommand::Write(root_ptr, VisitCommand::Continue) =
-                self.octree.fill_root(root_coords, |root_ptr, state| {
+            let root_key = NodeKey::new(root_level, root_coords);
+            if let FillCommand::Write(root_node, VisitCommand::Continue) =
+                self.octree.fill_root(root_key, |root_ptr, state| {
                     filler(
                         NodePtr::new(root_level, root_ptr),
                         ChunkUnits(root_coords),
@@ -78,7 +79,7 @@ impl ChunkClipMap {
                     )
                 })
             {
-                let root_ptr = NodePtr::new(root_level, root_ptr);
+                let root_ptr = NodePtr::new(root_level, root_node.self_ptr);
                 self.octree.fill_descendants(
                     root_ptr,
                     root_coords,
@@ -124,8 +125,9 @@ impl ChunkClipMap {
                 continue;
             }
 
-            if let FillCommand::Write(root_ptr, VisitCommand::Continue) =
-                self.octree.fill_root(root_coords, |root_ptr, state| {
+            let root_key = NodeKey::new(root_level, root_coords);
+            if let FillCommand::Write(root_node, VisitCommand::Continue) =
+                self.octree.fill_root(root_key, |root_ptr, state| {
                     filler(
                         NodePtr::new(root_level, root_ptr),
                         ChunkUnits(root_coords),
@@ -133,7 +135,7 @@ impl ChunkClipMap {
                     )
                 })
             {
-                let root_ptr = NodePtr::new(root_level, root_ptr);
+                let root_ptr = NodePtr::new(root_level, root_node.self_ptr);
                 self.octree.fill_descendants(
                     root_ptr,
                     root_coords,
@@ -162,8 +164,9 @@ impl ChunkClipMap {
         mut visitor: impl FnMut(NodePtr, ChunkUnits<IVec3>),
     ) {
         let root_level = self.octree.root_level();
-        for (root_ptr, root_coords) in self.octree.iter_roots() {
-            let root_extent = chunk_extent_at_level_ivec3(root_level, ChunkUnits(root_coords));
+        for (root_key, root_node) in self.octree.iter_roots() {
+            let root_extent =
+                chunk_extent_at_level_ivec3(root_level, ChunkUnits(root_key.coordinates));
             let disjoint = VoxelUnits::map2(extent, root_extent, |e1, e2| {
                 e1.intersection(&e2).is_empty()
             })
@@ -171,8 +174,11 @@ impl ChunkClipMap {
             if disjoint {
                 continue;
             }
-            self.octree
-                .visit_tree_depth_first(root_ptr, root_coords, min_level, |ptr, coords| {
+            self.octree.visit_tree_depth_first(
+                NodePtr::new(root_level, root_node.self_ptr),
+                root_key.coordinates,
+                min_level,
+                |ptr, coords| {
                     let coords = ChunkUnits(coords);
                     let this_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
                     let disjoint = VoxelUnits::map2(this_extent, extent, |e1, e2| {
@@ -185,7 +191,8 @@ impl ChunkClipMap {
                         visitor(ptr, coords);
                         VisitCommand::Continue
                     }
-                })
+                },
+            )
         }
     }
 }
@@ -201,10 +208,7 @@ impl ChunkClipMap {
 mod test {
     use super::node::NodeState;
     use super::*;
-    use crate::core::{
-        glam::Vec3A,
-        geometry::Ray,
-    };
+    use crate::core::{geometry::Ray, glam::Vec3A};
     use crate::{
         chunk::Chunk,
         coordinates::{chunk_extent_from_min_ivec3, in_chunk_extent},
