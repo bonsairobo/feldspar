@@ -1,3 +1,4 @@
+mod neighborhood_subdiv;
 mod node;
 mod raycast;
 mod streaming;

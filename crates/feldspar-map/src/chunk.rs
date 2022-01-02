@@ -1,14 +1,14 @@
-use crate::sampling::OctantKernel;
-use crate::{coordinates::*, ndview::NdView, palette::PaletteId8, sdf::Sd8, units::*};
 use crate::core::geometry::Ray;
 use crate::core::glam::{const_ivec3, const_vec3a, IVec3, Vec3A};
 use crate::core::rkyv::{Archive, Deserialize, Serialize};
 use crate::core::static_assertions::const_assert_eq;
+use crate::sampling::OctantKernel;
+use crate::{coordinates::*, ndview::NdView, palette::PaletteId8, sdf::Sd8, units::*};
 
 use bytemuck::{bytes_of, bytes_of_mut, Pod, Zeroable};
 use grid_ray::GridRayIter3;
 use lz4_flex::frame::{FrameDecoder, FrameEncoder};
-use ndshape::{ConstPow2Shape3i32, ConstShape};
+use ndshape::{ConstPow2Shape3i32, ConstShape, ConstShape3i32};
 use std::io;
 use std::mem;
 
@@ -16,11 +16,16 @@ use std::mem;
 pub type ChunkShape = ConstPow2Shape3i32<4, 4, 4>;
 const_assert_eq!(ChunkShape::SIZE, 16 * 16 * 16);
 pub const CHUNK_SIZE: usize = ChunkShape::SIZE as usize;
-pub const CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!([16; 3]);
+pub const CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!(ChunkShape::ARRAY);
 pub const CHUNK_SHAPE_VEC3A: Vec3A = const_vec3a!([16.0; 3]);
 pub const CHUNK_SHAPE_LOG2_IVEC3: IVec3 = const_ivec3!([4; 3]);
 pub const HALF_CHUNK_SHAPE_LOG2_IVEC3: IVec3 = const_ivec3!([3; 3]);
 pub const HALF_CHUNK_EDGE_LENGTH: i32 = 8;
+
+/// The shape (in voxels) of a padded chunk, i.e. the full set of voxels necessary to produce a chunk mesh.
+pub type PaddedChunkShape = ConstShape3i32<18, 18, 18>;
+/// [`IVec3`] version of [`PaddedChunkShape`].
+pub const PADDED_CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!(PaddedChunkShape::ARRAY);
 
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;
@@ -153,12 +158,7 @@ impl Chunk {
                     // TODO: log warning!
                     break;
                 }
-                if !visitor(
-                    actual_t_enter,
-                    p,
-                    self.sdf[index],
-                    self.palette_ids[index],
-                ) {
+                if !visitor(actual_t_enter, p, self.sdf[index], self.palette_ids[index]) {
                     break;
                 }
             }

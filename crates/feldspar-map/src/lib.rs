@@ -74,6 +74,4 @@ mod plugin;
 #[cfg(feature = "bevy")]
 pub use plugin::*;
 
-// Private aliases.
-use feldspar_core as core;
-
+pub use feldspar_core as core;

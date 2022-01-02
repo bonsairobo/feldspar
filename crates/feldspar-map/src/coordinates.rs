@@ -1,13 +1,27 @@
+use crate::core::geometry::Sphere;
+use crate::core::glam::{const_ivec3, IVec3, Vec3A};
+use crate::core::ilattice::prelude::Extent;
 use crate::{
     chunk::{CHUNK_SHAPE_IVEC3, CHUNK_SHAPE_LOG2_IVEC3, CHUNK_SHAPE_VEC3A},
     clipmap::{ChildIndex, Level},
     units::*,
 };
-use crate::core::geometry::Sphere;
-use crate::core::glam::{IVec3, Vec3A};
-use crate::core::ilattice::prelude::Extent;
 
 use grid_tree::{BranchShape, OctreeShapeI32};
+
+/// Specified in order where X increases first, then Y, then Z.
+///
+/// This order matches the standard layout and iteration order of n-dimensional arrays in feldspar.
+pub const CUBE_CORNERS: [IVec3; 8] = [
+    const_ivec3!([0, 0, 0]),
+    const_ivec3!([1, 0, 0]),
+    const_ivec3!([0, 1, 0]),
+    const_ivec3!([1, 1, 0]),
+    const_ivec3!([0, 0, 1]),
+    const_ivec3!([1, 0, 1]),
+    const_ivec3!([0, 1, 1]),
+    const_ivec3!([1, 1, 1]),
+];
 
 pub fn chunk_extent_from_min_ivec3(min: VoxelUnits<IVec3>) -> VoxelUnits<Extent<IVec3>> {
     min.map(|m| Extent::from_min_and_shape(m, CHUNK_SHAPE_IVEC3))
@@ -77,6 +91,14 @@ pub fn min_child_coords(parent_coords: IVec3) -> IVec3 {
 
 pub fn parent_coords(child_coords: IVec3) -> IVec3 {
     child_coords >> 1
+}
+
+pub fn min_sibling_coords(coords: IVec3) -> IVec3 {
+    OctreeShapeI32::min_child_key(OctreeShapeI32::parent_key(coords))
+}
+
+pub fn child_index(coords: IVec3) -> ChildIndex {
+    OctreeShapeI32::linearize_child(coords - min_sibling_coords(coords))
 }
 
 pub fn visit_children(parent_coords: IVec3, mut visitor: impl FnMut(ChildIndex, IVec3)) {
