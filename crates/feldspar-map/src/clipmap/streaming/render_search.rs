@@ -4,15 +4,12 @@ use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
     clipmap::{Level, NodeLocation},
-    coordinates::{
-        child_index, chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent,
-        visit_children, CUBE_CORNERS,
-    },
+    coordinates::{chunk_bounding_sphere, CUBE_CORNERS},
     units::*,
 };
 
 use float_ord::FloatOrd;
-use grid_tree::{AllocPtr, ChildIndex, NodeKey, NodePtr};
+use grid_tree::{AllocPtr, NodeKey, NodePtr};
 use smallvec::SmallVec;
 use std::collections::BinaryHeap;
 
@@ -27,31 +24,45 @@ impl ChunkClipMap {
         observer: VoxelUnits<Vec3A>,
         mut rx: impl FnMut(LodChange),
     ) {
-        let mut candidate_heap = BinaryHeap::new();
-        let mut num_load_slots = 0;
+        let VoxelUnits(observer) = observer;
+        let VoxelUnits(clip_radius) = self.stream_config.clip_sphere_radius;
+        let clip_sphere = Sphere::new(observer, clip_radius);
 
-        for (root_key, root_node) in self.octree.iter_roots() {
-            let mut neighborhood = [Neighbor::new(Some(root_node.self_ptr)); 8];
-            for (&offset, neighbor) in CUBE_CORNERS.iter().zip(neighborhood.iter_mut()).skip(1) {
+        let node_intersects_clip_sphere = |key: NodeKey<IVec3>| {
+            let VoxelUnits(chunk_bounding_sphere) =
+                chunk_bounding_sphere(key.level, ChunkUnits(key.coordinates));
+            clip_sphere.intersects(&chunk_bounding_sphere)
+        };
+
+        let mut candidate_heap = BinaryHeap::new();
+
+        for (root_key, _root_node) in self.octree.iter_roots() {
+            let mut neighborhood = [Neighbor::Empty { loaded: false }; 8];
+            for (&offset, target_neighbor) in CUBE_CORNERS.iter().zip(neighborhood.iter_mut()) {
                 let neighbor_key = NodeKey::new(root_key.level, root_key.coordinates + offset);
-                *neighbor = Neighbor::new(
-                    self.octree
-                        .find_root(neighbor_key)
-                        .map(|node| node.self_ptr),
-                );
+
+                *target_neighbor = if let Some(root_node) = self.octree.find_root(neighbor_key) {
+                    Neighbor::Occupied(root_node.self_ptr)
+                } else {
+                    Neighbor::Empty {
+                        loaded: node_intersects_clip_sphere(neighbor_key),
+                    }
+                };
             }
             candidate_heap.push(RenderSearchNode::new(
                 root_key.level,
                 ChunkUnits(root_key.coordinates),
                 neighborhood,
-                observer,
+                VoxelUnits(observer),
             ));
         }
 
+        let mut num_load_slots = 0;
         while let Some(RenderSearchNode {
             level,
-            coordinates,
+            coordinates: ChunkUnits(coordinates),
             neighborhood,
+            center_dist_to_observer,
             ..
         }) = candidate_heap.pop()
         {
@@ -64,7 +75,50 @@ impl ChunkClipMap {
             }
             let child_level = level - 1;
 
-            todo!();
+            // Add all child neighborhoods to the heap.
+            for (&child_offset, (parent_indices, child_indices)) in CUBE_CORNERS
+                .iter()
+                .zip(NEIGHBORHOODS_PARENTS.iter().zip(NEIGHBORHOODS.iter()))
+            {
+                // Fill out each node in this neighborhood.
+                let mut child_neighborhood = [Neighbor::Empty { loaded: false }; 8];
+                for (target_neighbor, (&parent_i, &child_i)) in child_neighborhood
+                    .iter_mut()
+                    .zip(parent_indices.iter().zip(child_indices.iter()))
+                {
+                    // PERF: Lame that we will match on the same parent multiple times? Would probably need to invert the lookup
+                    // tables to avoid that.
+                    let parent = &neighborhood[parent_i as usize];
+                    *target_neighbor = match parent {
+                        &Neighbor::Occupied(parent_ptr) => {
+                            let parent_ptr = NodePtr::new(level, parent_ptr);
+                            let children = self.octree.child_pointers(parent_ptr).unwrap();
+                            if let Some(child_ptr) = children.get_child(child_i) {
+                                Neighbor::Occupied(child_ptr.alloc_ptr())
+                            } else {
+                                let parent_node = self.octree.get_value(parent_ptr).unwrap();
+                                let loaded = parent_node
+                                    .state()
+                                    .descendant_is_loading
+                                    .bit_is_set(child_i);
+                                Neighbor::Empty { loaded }
+                            }
+                        }
+                        &empty => empty,
+                    };
+                }
+
+                // PERF: Should we skip empty minimal neighbors earlier?
+                // Only non-minimal neighbors can be empty when meshing.
+                if let Neighbor::Occupied(_) = child_neighborhood[0] {
+                    candidate_heap.push(RenderSearchNode::new(
+                        child_level,
+                        ChunkUnits(coordinates + child_offset),
+                        child_neighborhood,
+                        VoxelUnits(observer),
+                    ));
+                }
+            }
         }
     }
 }
@@ -101,18 +155,17 @@ struct RenderSearchNode {
     level: Level,
     coordinates: ChunkUnits<IVec3>,
     closest_dist_to_observer: VoxelUnits<f32>,
+    center_dist_to_observer: VoxelUnits<f32>,
     neighborhood: [Neighbor; 8],
 }
 
 #[derive(Clone, Copy)]
-struct Neighbor {
-    ptr: Option<AllocPtr>,
-}
-
-impl Neighbor {
-    fn new(ptr: Option<AllocPtr>) -> Self {
-        Self { ptr }
-    }
+enum Neighbor {
+    /// This node exists in the clipmap octree. It might be loading, but we need to check the
+    /// [`NodeState`](crate::clipmap::NodeState).
+    Occupied(AllocPtr),
+    /// An ancestor indicated this slot was empty.
+    Empty { loaded: bool },
 }
 
 impl RenderSearchNode {
@@ -134,6 +187,7 @@ impl RenderSearchNode {
             level,
             coordinates,
             closest_dist_to_observer: VoxelUnits(closest_dist_to_observer),
+            center_dist_to_observer: VoxelUnits(center_dist_to_observer),
             neighborhood,
         }
     }

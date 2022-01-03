@@ -202,6 +202,7 @@ fn new_nodes_intersecting_sphere_recursive(
     new_clip_sphere: VoxelUnits<Sphere>,
     rx: &mut impl FnMut(NodeSlot),
 ) {
+    let VoxelUnits(detail) = config.detail;
     let VoxelUnits(old_clip_sphere) = old_clip_sphere;
     let VoxelUnits(new_clip_sphere) = new_clip_sphere;
     let VoxelUnits(node_sphere) = chunk_bounding_sphere(node_level, node_coords);
@@ -234,7 +235,7 @@ fn new_nodes_intersecting_sphere_recursive(
         if !node_intersects_old_clip_sphere {
             // This is the LOD where we want to detect entrances into the clip sphere.
             let is_render_candidate =
-                node_level == 0 || dist_to_new_clip_sphere / node_sphere.radius > config.detail;
+                node_level == 0 || dist_to_new_clip_sphere / node_sphere.radius > detail;
 
             rx(NodeSlot {
                 coordinates: node_coords,

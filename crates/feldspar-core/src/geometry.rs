@@ -54,6 +54,10 @@ pub struct Sphere {
 }
 
 impl Sphere {
+    pub fn new(center: Vec3A, radius: f32) -> Self {
+        Self { center, radius }
+    }
+
     pub fn contains(&self, other: &Self) -> bool {
         let dist = self.center.distance(other.center);
         dist + other.radius < self.radius

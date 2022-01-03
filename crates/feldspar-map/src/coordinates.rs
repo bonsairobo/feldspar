@@ -104,10 +104,7 @@ pub fn child_index(coords: IVec3) -> ChildIndex {
 pub fn visit_children(parent_coords: IVec3, mut visitor: impl FnMut(ChildIndex, IVec3)) {
     let min_child = min_child_coords(parent_coords);
     for child_i in 0..8 {
-        visitor(
-            child_i,
-            min_child + OctreeShapeI32::delinearize_child(child_i),
-        );
+        visitor(child_i, min_child + CUBE_CORNERS[child_i as usize]);
     }
 }
 

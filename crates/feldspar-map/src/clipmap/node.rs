@@ -1,6 +1,6 @@
+use crate::chunk::{Chunk, CompressedChunk};
 use crate::core::bitset::{AtomicBitset8, Bitset8};
 use crate::core::static_assertions::const_assert_eq;
-use crate::chunk::{Chunk, CompressedChunk};
 
 use either::Either;
 use parking_lot::{RwLock, RwLockReadGuard, RwLockWriteGuard};
