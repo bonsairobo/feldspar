@@ -48,8 +48,7 @@ impl Neighbor {
     }
 }
 
-/// Split `old_chunk` into many `new_chunks`. The number of new chunks depends on how many levels of detail the octant has
-/// moved.
+/// Split `old_chunk` into children `new_chunks`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SplitChunk {
     pub old_chunk: NodeLocation,
