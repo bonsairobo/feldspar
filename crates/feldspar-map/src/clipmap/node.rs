@@ -161,7 +161,7 @@ impl ChunkNode {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
-enum StateBit {
+pub enum StateBit {
     /// This bit is set if there is chunk data in the slot.
     Occupied = 0,
     /// This bit is set if the node is compressed or in the process of being decompressed.
