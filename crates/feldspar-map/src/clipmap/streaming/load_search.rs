@@ -175,10 +175,12 @@ impl Ord for LoadSearchNode {
 pub fn new_nodes_intersecting_sphere(
     config: StreamingConfig,
     root_level: Level,
-    old_clip_sphere: VoxelUnits<Sphere>,
-    new_clip_sphere: VoxelUnits<Sphere>,
+    old_observer: VoxelUnits<Vec3A>,
+    new_observer: VoxelUnits<Vec3A>,
     mut rx: impl FnMut(NodeSlot),
 ) {
+    let old_clip_sphere = VoxelUnits::map2(old_observer, config.clip_sphere_radius, Sphere::new);
+    let new_clip_sphere = VoxelUnits::map2(new_observer, config.clip_sphere_radius, Sphere::new);
     let ChunkUnits(new_root_level_extent) =
         sphere_intersecting_ancestor_chunk_extent(new_clip_sphere, root_level);
 
