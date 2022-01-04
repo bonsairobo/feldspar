@@ -4,8 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features = false }
 
 feldspar-map = { path = "../feldspar-map/", version = "0.1" }
 
 fast-surface-nets = "0.1"
+
+[dependencies.bevy]
+git = "https://github.com/bevyengine/bevy"
+branch = "main"
+default-features = false
+features = ["render", "png", "x11"]

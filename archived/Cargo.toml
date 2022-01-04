@@ -1,0 +1,42 @@
+[package]
+name = "feldspar-archived"
+version = "0.1.0"
+authors = ["Duncan <bonsairobo@gmail.com>"]
+edition = "2018"
+
+[profile]
+dev = { opt-level = 2 }
+release = { lto = "thin" }
+bench = { lto = "thin" }
+
+[[bin]]
+name = "editor"
+path = "src/editor/main.rs"
+test = false
+bench = false
+
+[dependencies]
+approx = "0.4"
+bytemuck = "1.7"
+log = "0.4"
+ron = "0.6"
+serde = "1.0"
+thread_local = "1.1"
+
+[dependencies.bevy]
+version = "0.5"
+default-features = false
+features = ["bevy_wgpu", "render", "png", "x11"]
+
+[dependencies.bevy_prototype_debug_lines]
+git = "https://github.com/Toqozz/bevy_debug_lines"
+rev = "fd43df5"
+
+# TODO: replace this with feldspar-map
+[dependencies.building-blocks]
+git = "https://github.com/bonsairobo/building-blocks"
+# branch = "main"
+rev = "b260faae1d54e"
+# path = "../building-blocks"
+default-features = false
+features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled", "sled-snapshots"]

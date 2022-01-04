@@ -52,9 +52,7 @@ though.
 
 - `building-blocks` should be considered deprecated for the purpose of this
   project, but many of the ideas therein have been preserved!
-- There is currently a fracture between what exists in the top-level library,
-  the separate `feldspar-editor` repository, and the `crates/` directory.
-  Anything in `crates/` is "current."
+- Anything in the `archived/` directory is basically deprecated, but some useful code might get copied out of there until it is
+  replaced entirely.
 - Eventually I want `feldspar-editor` to move into the `feldspar` repo as a
   top-level executable.
-- Eventually I want the top-level library to depend on stuff in `crates/`.

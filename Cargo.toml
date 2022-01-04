@@ -2,11 +2,11 @@
 name = "feldspar"
 version = "0.1.0"
 authors = ["Duncan <bonsairobo@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [workspace]
 members = ["crates/*"]
-exclude = ["benches"]
+exclude = ["archived", "benches"]
 
 [profile]
 dev = { opt-level = 2 }
@@ -28,24 +28,3 @@ serde = "1.0"
 thread_local = "1.1"
 
 feldspar-map = { path = "crates/feldspar-map", version = "0.1" }
-
-[dependencies.bevy]
-version = "0.5"
-# path = "../bevy"
-# git = "https://github.com/bevyengine/bevy"
-# rev = "7a511394"
-default-features = false
-features = ["bevy_wgpu", "render", "png", "x11"]
-
-[dependencies.bevy_prototype_debug_lines]
-git = "https://github.com/Toqozz/bevy_debug_lines"
-rev = "fd43df5"
-
-# TODO: replace this with feldspar-map
-[dependencies.building-blocks]
-git = "https://github.com/bonsairobo/building-blocks"
-# branch = "main"
-rev = "b260faae1d54e"
-# path = "../building-blocks"
-default-features = false
-features = ["glam", "lz4", "mesh", "nalgebra", "ncollide", "search", "sled", "sled-snapshots"]
