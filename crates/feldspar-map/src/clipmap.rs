@@ -216,7 +216,7 @@ mod test {
         ndview::NdView,
     };
 
-    use ndshape::Shape3i32;
+    use ndshape::RuntimeShape;
 
     #[test]
     fn fill_extent() {
@@ -229,7 +229,7 @@ mod test {
         // Fill in the extent with empty nodes and cache pointers to them.
         let mut node_pointers = NdView::new(
             vec![NodePtr::NULL; chunks_extent.volume() as usize],
-            Shape3i32::new(chunks_extent.shape.to_array()),
+            RuntimeShape::<i32, 3>::new(chunks_extent.shape.to_array()),
         );
         tree.fill_extent_intersections(
             4,

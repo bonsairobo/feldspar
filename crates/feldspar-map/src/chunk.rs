@@ -26,6 +26,8 @@ pub const HALF_CHUNK_EDGE_LENGTH: i32 = 8;
 pub type PaddedChunkShape = ConstShape3i32<18, 18, 18>;
 /// [`IVec3`] version of [`PaddedChunkShape`].
 pub const PADDED_CHUNK_SHAPE_IVEC3: IVec3 = const_ivec3!(PaddedChunkShape::ARRAY);
+pub const PADDED_CHUNK_SHAPE_VEC3A: Vec3A = const_vec3a!([18.0; 3]);
+pub const PADDED_CHUNK_SIZE: usize = PaddedChunkShape::SIZE as usize;
 
 /// "As far *outside* of the terrain surface as possible."
 pub const AMBIENT_SD8: Sd8 = Sd8::MAX;

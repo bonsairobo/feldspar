@@ -25,7 +25,7 @@ impl<T, Data, S> NdView<T, Data, S> {
 impl<T, Data, S, const N: usize> Index<[i32; N]> for NdView<T, Data, S>
 where
     Data: AsRef<[T]>,
-    S: Shape<i32, N>,
+    S: Shape<N, Coord = i32>,
 {
     type Output = T;
 
@@ -40,7 +40,7 @@ where
 impl<T, Data, S, const N: usize> IndexMut<[i32; N]> for NdView<T, Data, S>
 where
     Data: AsRef<[T]> + AsMut<[T]>,
-    S: Shape<i32, N>,
+    S: Shape<N, Coord = i32>,
 {
     #[inline]
     fn index_mut(&mut self, index: [i32; N]) -> &mut Self::Output {
@@ -53,7 +53,7 @@ where
 impl<T, Data, S> Index<IVec2> for NdView<T, Data, S>
 where
     Data: AsRef<[T]>,
-    S: Shape<i32, 2>,
+    S: Shape<2, Coord = i32>,
 {
     type Output = T;
 
@@ -68,7 +68,7 @@ where
 impl<T, Data, S> IndexMut<IVec2> for NdView<T, Data, S>
 where
     Data: AsRef<[T]> + AsMut<[T]>,
-    S: Shape<i32, 2>,
+    S: Shape<2, Coord = i32>,
 {
     #[inline]
     fn index_mut(&mut self, index: IVec2) -> &mut Self::Output {
@@ -81,7 +81,7 @@ where
 impl<T, Data, S> Index<IVec3> for NdView<T, Data, S>
 where
     Data: AsRef<[T]>,
-    S: Shape<i32, 3>,
+    S: Shape<3, Coord = i32>,
 {
     type Output = T;
 
@@ -96,7 +96,7 @@ where
 impl<T, Data, S> IndexMut<IVec3> for NdView<T, Data, S>
 where
     Data: AsRef<[T]> + AsMut<[T]>,
-    S: Shape<i32, 3>,
+    S: Shape<3, Coord = i32>,
 {
     #[inline]
     fn index_mut(&mut self, index: IVec3) -> &mut Self::Output {

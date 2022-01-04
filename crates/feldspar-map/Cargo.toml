@@ -13,7 +13,7 @@ grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main
 itertools = "0.10"
 log = "0.4"
 lz4_flex = "0.9"
-ndshape = "0.2"
+ndshape = { git = "https://github.com/bonsairobo/ndshape-rs", branch = "main" }
 parking_lot = "0.11"
 # NB: need 8-byte alignment guarantee from sled on main branch; not in stable release yet
 sled = { git = "https://github.com/spacejam/sled", rev = "c840fe7e" }
