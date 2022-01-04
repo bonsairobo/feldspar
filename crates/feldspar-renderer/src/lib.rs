@@ -21,3 +21,9 @@
 //!
 //! To avoid the incredibly frustrating issue of multi-resolution mesh stitching, we sacrifice some GPU memory to blend between
 //! vertices of adjacent levels of detail together in the vertex shader, based on the distance from the camera to the vertex.
+
+mod config;
+mod plugin;
+
+pub use config::*;
+pub use plugin::*;

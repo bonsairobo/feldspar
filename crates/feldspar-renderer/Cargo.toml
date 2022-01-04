@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde = "1.0" # Can't go in core because re-exporting it breaks macros.
 
-feldspar-map = { path = "../feldspar-map/", version = "0.1" }
+feldspar-map = { path = "../feldspar-map/", version = "0.1", features = ["bevy"] }
 
 fast-surface-nets = "0.1"
 

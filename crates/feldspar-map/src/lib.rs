@@ -74,4 +74,7 @@ mod plugin;
 #[cfg(feature = "bevy")]
 pub use plugin::*;
 
+#[cfg(feature = "bevy")]
+pub use bevy;
+
 pub use feldspar_core as core;

@@ -1,8 +1,9 @@
 use bevy::prelude::Plugin;
 
-pub struct MapPlugin;
+pub struct RenderPlugin;
 
-impl Plugin for MapPlugin {
+impl Plugin for RenderPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
+        
     }
 }
