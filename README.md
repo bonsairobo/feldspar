@@ -1,5 +1,8 @@
 # feldspar
 
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Discord](https://img.shields.io/discord/770726405557321778.svg?logo=discord&colorB=7289DA)](https://discord.gg/CnTNjwb)
+
 Procedural voxel worlds for Bevy Engine.
 
 **Currently a work in progress!**
