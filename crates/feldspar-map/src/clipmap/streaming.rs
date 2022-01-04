@@ -2,6 +2,7 @@ mod load_search;
 mod render_search;
 
 pub use load_search::*;
+pub use render_search::*;
 
 use crate::clipmap::Level;
 use crate::units::VoxelUnits;
