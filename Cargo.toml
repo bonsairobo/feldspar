@@ -16,13 +16,11 @@ bench = { lto = "thin" }
 [[bin]]
 name = "viewer"
 path = "bin/viewer/main.rs"
-test = false
 bench = false
 
 [[bin]]
 name = "editor"
 path = "bin/editor/main.rs"
-test = false
 bench = false
 
 [dependencies]
