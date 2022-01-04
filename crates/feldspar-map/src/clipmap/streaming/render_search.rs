@@ -19,7 +19,10 @@ pub enum LodChange {
     /// The desired sample rate for this chunk decreased this frame.
     Merge(MergeChunks),
     /// The desired sample rate for this chunk increased this frame.
-    Split(SplitChunk),
+    ///
+    /// `Box`ed because `SplitChunk` is a relatively large variant, as pointed out by clippy.
+    /// PERF: measure the effects of this choice.
+    Split(Box<SplitChunk>),
     /// This is just a `Merge` with no descendants.
     Spawn(RenderNeighborhood),
 }
@@ -179,11 +182,9 @@ impl ChunkClipMap {
                         self.construct_child_neighborhoods(min_neighbor_ptr, &nhood.neighbors);
 
                     // Make sure all child neighborhoods are loaded.
-                    for nhood in child_neighborhoods.iter() {
-                        if let Some(nhood) = nhood {
-                            if !self.neighborhood_is_loaded(nhood) {
-                                continue;
-                            }
+                    for nhood in child_neighborhoods.iter().flatten() {
+                        if !self.neighborhood_is_loaded(nhood) {
+                            continue;
                         }
                     }
 
@@ -195,10 +196,10 @@ impl ChunkClipMap {
                             child_node.state().state.set_bit(StateBit::Render as u8);
                             num_render_chunks += 1;
                         });
-                    rx(LodChange::Split(SplitChunk {
+                    rx(LodChange::Split(Box::new(SplitChunk {
                         old_chunk: NodeLocation::new(ChunkUnits(coordinates), min_neighbor_ptr),
                         new_chunks: child_neighborhoods,
-                    }));
+                    })));
                 }
                 // Node just became active, and none of its ancestors were active.
                 (false, true) => {
@@ -291,8 +292,8 @@ impl ChunkClipMap {
                 // PERF: Lame that we will match on the same parent multiple times? Would probably need to invert the lookup
                 // tables to avoid that.
                 let parent = &neighborhood[parent_i as usize];
-                *target_neighbor = match parent {
-                    &Neighbor::Occupied(parent_ptr) => {
+                *target_neighbor = match *parent {
+                    Neighbor::Occupied(parent_ptr) => {
                         let parent_ptr = NodePtr::new(parent_level, parent_ptr);
                         let children = self.octree.child_pointers(parent_ptr).unwrap();
                         if let Some(child_ptr) = children.get_child(child_i) {
@@ -306,7 +307,7 @@ impl ChunkClipMap {
                             Neighbor::Empty { loaded }
                         }
                     }
-                    &empty => empty,
+                    empty => empty,
                 };
             }
 

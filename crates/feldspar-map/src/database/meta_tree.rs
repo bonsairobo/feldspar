@@ -9,7 +9,7 @@ use sled::{
     Tree,
 };
 
-const META_KEY: &'static str = "META";
+const META_KEY: &str = "META";
 
 #[derive(Archive, Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[archive(crate = "crate::core::rkyv")]
