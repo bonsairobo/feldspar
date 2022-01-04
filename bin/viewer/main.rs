@@ -1,4 +1,4 @@
-use feldspar_map::bevy::{
+use bevy::{
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
     render::{
