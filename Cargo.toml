@@ -14,10 +14,18 @@ release = { lto = "thin" }
 bench = { lto = "thin" }
 
 [[bin]]
+name = "viewer"
+path = "bin/viewer/main.rs"
+test = false
+bench = false
+
+[[bin]]
 name = "editor"
-path = "src/editor/main.rs"
+path = "bin/editor/main.rs"
 test = false
 bench = false
 
 [dependencies]
-feldspar-map = { path = "crates/feldspar-map", version = "0.1" }
+feldspar-core = { path = "crates/feldspar-core", version = "0.1" }
+feldspar-map = { path = "crates/feldspar-map", version = "0.1", features = ["bevy"] }
+feldspar-renderer = { path = "crates/feldspar-renderer", version = "0.1" }

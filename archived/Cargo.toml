@@ -9,12 +9,6 @@ dev = { opt-level = 2 }
 release = { lto = "thin" }
 bench = { lto = "thin" }
 
-[[bin]]
-name = "editor"
-path = "src/editor/main.rs"
-test = false
-bench = false
-
 [dependencies]
 approx = "0.4"
 bytemuck = "1.7"

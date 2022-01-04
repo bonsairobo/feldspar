@@ -20,9 +20,10 @@ sled = { git = "https://github.com/spacejam/sled", rev = "c840fe7e" }
 smallvec = "1.7"
 vox-format = "0.1"
 
-bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features = false }
-
 feldspar-core = { path = "../feldspar-core/", version = "0.1" }
+
+# Optional; enable to get the Bevy plugin.
+bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features = false, optional = true }
 
 [dev-dependencies]
 crossbeam = "0.8"
