@@ -1,13 +1,14 @@
 use bevy::{
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
-    render::{
-        options::WgpuOptions,
-        render_resource::WgpuFeatures,
-    },
+    render::{options::WgpuOptions, render_resource::WgpuFeatures},
 };
 use feldspar_map::MapPlugin;
 use feldspar_renderer::RenderPlugin;
+use smooth_bevy_cameras::{
+    controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
+    LookTransformPlugin,
+};
 
 fn main() {
     let window_desc = WindowDescriptor {
@@ -24,18 +25,20 @@ fn main() {
             ..Default::default()
         })
         .insert_resource(Msaa { samples: 4 })
+        // Bevy,
         .add_plugins(DefaultPlugins)
         .add_plugin(WireframePlugin)
+        // Feldspar.
         .add_plugin(MapPlugin)
         .add_plugin(RenderPlugin)
+        // Viewer.
+        .add_plugin(LookTransformPlugin)
+        .add_plugin(FpsCameraPlugin::default())
         .add_startup_system(setup.system())
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-    mut wireframe_config: ResMut<WireframeConfig>,
-) {
+fn setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) {
     wireframe_config.global = true;
 
     commands.spawn_bundle(PointLightBundle {
