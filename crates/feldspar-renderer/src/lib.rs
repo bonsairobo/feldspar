@@ -23,7 +23,9 @@
 //! vertices of adjacent levels of detail together in the vertex shader, based on the distance from the camera to the vertex.
 
 mod config;
+mod mesher;
 mod plugin;
 
 pub use config::*;
+pub use mesher::*;
 pub use plugin::*;
