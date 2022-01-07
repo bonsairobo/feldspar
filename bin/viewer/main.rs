@@ -19,19 +19,19 @@ fn main() {
     };
 
     App::new()
+        // Bevy
         .insert_resource(window_desc)
         .insert_resource(WgpuOptions {
             features: WgpuFeatures::POLYGON_MODE_LINE,
             ..Default::default()
         })
         .insert_resource(Msaa { samples: 4 })
-        // Bevy,
         .add_plugins(DefaultPlugins)
         .add_plugin(WireframePlugin)
-        // Feldspar.
+        // Feldspar
         .add_plugin(MapPlugin)
         .add_plugin(RenderPlugin)
-        // Viewer.
+        // Viewer
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
         .add_startup_system(setup.system())
@@ -50,9 +50,12 @@ fn setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) 
         },
         ..Default::default()
     });
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_translation(Vec3::new(50.0, 15.0, 50.0))
-            .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::Y),
-        ..Default::default()
-    });
+    let eye = Vec3::new(50.0, 15.0, 50.0);
+    let target = Vec3::new(0.0, 0.0, 0.0);
+    commands.spawn_bundle(FpsCameraBundle::new(
+        FpsCameraController::default(),
+        PerspectiveCameraBundle::default(),
+        eye,
+        target,
+    ));
 }
