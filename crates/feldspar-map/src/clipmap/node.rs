@@ -34,6 +34,11 @@ impl ChunkNode {
         &self.state
     }
 
+    #[inline]
+    pub fn state_mut(&mut self) -> &mut NodeState {
+        &mut self.state
+    }
+
     pub fn new_empty(state: NodeState) -> Self {
         state.state.unset_bit(StateBit::Occupied as u8);
         Self {

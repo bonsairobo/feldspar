@@ -12,7 +12,9 @@ use crate::core::glam::IVec3;
 use crate::core::ilattice::prelude::Extent;
 use crate::units::{ChunkUnits, VoxelUnits};
 
-pub use grid_tree::{ChildIndex, Level, NodeKey, NodePtr, VisitCommand, EMPTY_ALLOC_PTR};
+pub use grid_tree::{
+    BranchShape, ChildIndex, Level, NodeKey, NodePtr, OctreeShapeI32, VisitCommand, EMPTY_ALLOC_PTR,
+};
 pub use node::*;
 pub use streaming::*;
 
@@ -182,15 +184,27 @@ impl ChunkClipMap {
         }
     }
 
-    pub fn insert_loading_node(&mut self, key: NodeKey<IVec3>) {
-        todo!()
-        // let root_key = self.octree.ancestor_root_key(key);
-        // let root = self
-        //     .octree
-        //     .get_or_create_root(root_key, || ChunkNode::new_empty(NodeState::default()));
-        // let root_ptr = NodePtr::new(self.octree.root_level(), root.self_ptr);
-        // let value = self.octree.get_value_mut(root_ptr).unwrap();
-        // value.state().set_loading();
+    pub fn insert_loading_node(&mut self, target_key: NodeKey<IVec3>) {
+        let mut level_diff = self.octree.root_level() - target_key.level;
+        self.octree.fill_path_to_node(target_key, |key, entry| {
+            let (_node_ptr, node) = entry.or_insert_with(|| {
+                let node = ChunkNode::default();
+                node.state().set_loading();
+                node
+            });
+            if level_diff == 0 {
+                node.state_mut().descendant_is_loading.set_all();
+                VisitCommand::SkipDescendants
+            } else {
+                level_diff -= 1;
+                let child_coords =
+                    OctreeShapeI32::ancestor_key(target_key.coordinates, level_diff as u32);
+                let min_sibling = OctreeShapeI32::min_child_key(key.coordinates);
+                let child_index = OctreeShapeI32::linearize_child(child_coords - min_sibling);
+                node.state_mut().descendant_is_loading.set_bit(child_index);
+                VisitCommand::Continue
+            }
+        })
     }
 }
 
