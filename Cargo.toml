@@ -25,7 +25,7 @@ bench = false
 
 [dependencies]
 feldspar-core = { path = "crates/feldspar-core", version = "0.1" }
-feldspar-map = { path = "crates/feldspar-map", version = "0.1", features = ["bevy"] }
+feldspar-map = { path = "crates/feldspar-map", version = "0.1", features = ["bevy_plugin"] }
 feldspar-renderer = { path = "crates/feldspar-renderer", version = "0.1" }
 
 smooth-bevy-cameras = { git = "https://github.com/bonsairobo/smooth-bevy-cameras", branch = "main" }

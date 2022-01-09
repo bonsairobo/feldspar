@@ -1,4 +1,4 @@
-use crate::clipmap::Level;
+use crate::clipmap::{Level, NodeKey};
 use crate::core::glam::IVec3;
 use crate::core::ilattice::prelude::{Bounded, Extent, Morton3i32};
 use crate::core::rkyv::{Archive, Deserialize, Serialize};
@@ -52,5 +52,12 @@ impl ChunkDbKey {
 
     pub fn max_key(level: u8) -> Self {
         Self::new(level, Morton3i32::from(IVec3::MAX))
+    }
+}
+
+impl From<NodeKey<IVec3>> for ChunkDbKey {
+    #[inline]
+    fn from(node: NodeKey<IVec3>) -> Self {
+        Self::new(node.level, node.coordinates.into())
     }
 }
