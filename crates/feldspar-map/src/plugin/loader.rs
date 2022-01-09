@@ -18,15 +18,15 @@ use std::sync::Arc;
 pub struct LoaderConfig {
     /// The number of chunks to start loading in a single frame (batch).
     pub load_batch_size: usize,
-    /// The maximum number of outstanding load tasks.
-    pub max_outstanding_load_tasks: usize,
+    /// The maximum number of pending load tasks.
+    pub max_pending_load_tasks: usize,
 }
 
 impl Default for LoaderConfig {
     fn default() -> Self {
         Self {
             load_batch_size: 256,
-            max_outstanding_load_tasks: 16,
+            max_pending_load_tasks: 16,
         }
     }
 }
@@ -35,11 +35,11 @@ pub struct LoadedBatch {
     reads: Vec<(ChunkDbKey, Option<ArchivedChangeIVec<CompressedChunk>>)>,
 }
 
-pub struct OutstandingLoadTasks {
+pub struct PendingLoadTasks {
     tasks: VecDeque<Task<LoadedBatch>>,
 }
 
-impl OutstandingLoadTasks {
+impl PendingLoadTasks {
     pub fn num_tasks(&self) -> usize {
         self.tasks.len()
     }
@@ -55,9 +55,9 @@ pub fn loader_system(
     io_pool: Res<IoTaskPool>,
     db: Res<Arc<MapDb>>, // PERF: better option than Arc?
     mut clipmap: ResMut<ChunkClipMap>,
-    mut load_tasks: ResMut<OutstandingLoadTasks>,
+    mut load_tasks: ResMut<PendingLoadTasks>,
 ) {
-    // Complete outstanding load tasks in queue order.
+    // Complete pending load tasks in queue order.
     // PERF: is this the best way to poll a sequence of futures?
     while let Some(mut task) = load_tasks.tasks.pop_front() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
@@ -84,7 +84,7 @@ pub fn loader_system(
                 |node_slot| clipmap.insert_loading_node(node_slot.node_key()),
             );
 
-            if load_tasks.num_tasks() >= config.loader.max_outstanding_load_tasks {
+            if load_tasks.num_tasks() >= config.loader.max_pending_load_tasks {
                 continue;
             }
 
