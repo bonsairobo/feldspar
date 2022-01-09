@@ -181,6 +181,17 @@ impl ChunkClipMap {
             )
         }
     }
+
+    pub fn insert_loading_node(&mut self, key: NodeKey<IVec3>) {
+        todo!()
+        // let root_key = self.octree.ancestor_root_key(key);
+        // let root = self
+        //     .octree
+        //     .get_or_create_root(root_key, || ChunkNode::new_empty(NodeState::default()));
+        // let root_ptr = NodePtr::new(self.octree.root_level(), root.self_ptr);
+        // let value = self.octree.get_value_mut(root_ptr).unwrap();
+        // value.state().set_loading();
+    }
 }
 
 // ████████╗███████╗███████╗████████╗

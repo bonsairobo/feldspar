@@ -1,7 +1,9 @@
 pub mod allocator;
 pub mod archived_buf;
 pub mod bitset;
+pub mod frame_budget;
 pub mod geometry;
+pub mod work_timer;
 
 use ahash::{AHashMap, AHashSet};
 pub type SmallKeyHashMap<K, V> = AHashMap<K, V>;
@@ -9,8 +11,8 @@ pub type SmallKeyHashSet<K> = AHashSet<K>;
 
 // Re-exports.
 pub use approx;
-pub use ilattice::glam as glam;
 pub use ilattice;
+pub use ilattice::glam;
 pub use rkyv;
 pub use static_assertions;
 

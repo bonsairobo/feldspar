@@ -69,9 +69,9 @@ pub mod units;
 pub mod vox;
 pub mod voxel_attributes;
 
-#[cfg(feature = "bevy")]
+#[cfg(feature = "bevy_plugin")]
 mod plugin;
-#[cfg(feature = "bevy")]
+#[cfg(feature = "bevy_plugin")]
 pub use plugin::*;
 
 #[cfg(feature = "bevy")]

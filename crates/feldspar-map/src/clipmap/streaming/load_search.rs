@@ -11,7 +11,7 @@ use crate::{
 };
 
 use float_ord::FloatOrd;
-use grid_tree::{AllocPtr, NodePtr};
+use grid_tree::{AllocPtr, NodeKey, NodePtr};
 use std::collections::BinaryHeap;
 
 pub struct NodeSlot {
@@ -19,6 +19,12 @@ pub struct NodeSlot {
     pub level: Level,
     pub dist: f32,
     pub is_render_candidate: bool,
+}
+
+impl NodeSlot {
+    pub fn node_key(&self) -> NodeKey<IVec3> {
+        NodeKey::new(self.level, self.coordinates.into_inner())
+    }
 }
 
 impl ChunkClipMap {

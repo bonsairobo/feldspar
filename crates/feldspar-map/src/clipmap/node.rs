@@ -213,13 +213,18 @@ impl NodeState {
     }
 
     #[inline]
-    pub fn is_rendering(&self) -> bool {
-        self.state.bit_is_set(StateBit::Render as u8)
+    pub fn set_loading(&self) {
+        self.state.set_bit(StateBit::Loading as u8)
     }
 
     #[inline]
-    fn mark_loaded(&self) -> bool {
-        self.state.fetch_and_unset_bit(StateBit::Loading as u8)
+    pub fn set_loaded(&self) {
+        self.state.unset_bit(StateBit::Loading as u8)
+    }
+
+    #[inline]
+    pub fn is_rendering(&self) -> bool {
+        self.state.bit_is_set(StateBit::Render as u8)
     }
 }
 

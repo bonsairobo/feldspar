@@ -7,7 +7,9 @@ pub use render_search::*;
 use crate::clipmap::Level;
 use crate::units::VoxelUnits;
 
-#[derive(Clone, Copy, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub struct StreamingConfig {
     /// A chunk is a *render candidate* if
     ///

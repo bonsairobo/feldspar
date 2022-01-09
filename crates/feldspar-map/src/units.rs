@@ -1,7 +1,7 @@
 macro_rules! def_units {
     ($t:ident, $docstr:expr) => {
         #[doc = $docstr]
-        #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+        #[derive(Clone, Copy, Debug, serde::Deserialize, Eq, Hash, PartialEq, serde::Serialize)]
         pub struct $t<T>(pub T);
 
         impl<T> $t<T> {

@@ -3,11 +3,13 @@ name = "feldspar-map"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+bevy_plugin = ["bevy", "futures-lite"]
+
 [dependencies]
 bytemuck = "1.7"
 either = "1.6"
 float-ord = "0.3"
-futures = "0.3"
 grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", branch = "main" }
 grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main" }
 itertools = "0.10"
@@ -15,13 +17,15 @@ log = "0.4"
 lz4_flex = "0.9"
 ndshape = { git = "https://github.com/bonsairobo/ndshape-rs", branch = "main" }
 parking_lot = "0.11"
-serde = "1.0" # Can't go in core because re-exporting it breaks macros.
+serde = { version = "1.0", features = ["derive"]} # Can't go in core because re-exporting it breaks macros.
 # NB: need 8-byte alignment guarantee from sled on main branch; not in stable release yet
 sled = { git = "https://github.com/spacejam/sled", rev = "c840fe7e" }
 smallvec = "1.7"
 vox-format = "0.1"
 
 feldspar-core = { path = "../feldspar-core/", version = "0.1" }
+
+futures-lite = { version = "1.12", optional = true }
 
 # Optional; enable to get the Bevy plugin.
 [dependencies.bevy]

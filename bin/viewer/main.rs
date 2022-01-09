@@ -29,7 +29,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(WireframePlugin)
         // Feldspar
-        .add_plugin(MapPlugin)
+        .add_plugin(MapPlugin::default())
         .add_plugin(RenderPlugin)
         // Viewer
         .add_plugin(LookTransformPlugin)
