@@ -12,13 +12,16 @@ use crate::core::glam::IVec3;
 use crate::core::ilattice::prelude::Extent;
 use crate::units::{ChunkUnits, VoxelUnits};
 
-pub use grid_tree::{ChildIndex, FillCommand, Level, NodeKey, NodePtr, SlotState, VisitCommand};
+pub use grid_tree::{ChildIndex, Level, NodeKey, NodePtr, VisitCommand, EMPTY_ALLOC_PTR};
 pub use node::*;
 pub use streaming::*;
 
 use grid_tree::OctreeI32;
 
 pub const CHILDREN: ChildIndex = OctreeI32::<()>::CHILDREN;
+pub const CHILDREN_USIZE: usize = CHILDREN as usize;
+
+pub type NodeEntry<'a> = grid_tree::NodeEntry<'a, ChunkNode, CHILDREN_USIZE>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NodeLocation {
@@ -61,7 +64,7 @@ impl ChunkClipMap {
         &mut self,
         min_level: Level,
         min_level_extent: VoxelUnits<Extent<IVec3>>,
-        mut filler: impl FnMut(NodePtr, ChunkUnits<IVec3>, SlotState) -> FillCommand<ChunkNode>,
+        mut filler: impl FnMut(NodeKey<IVec3>, &mut NodeEntry<'_>) -> VisitCommand,
     ) {
         // Find the smallest extent at root level that covers the extent at the given level.
         let root_level = self.octree.root_level();
@@ -71,37 +74,28 @@ impl ChunkClipMap {
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
             let root_key = NodeKey::new(root_level, root_coords);
-            if let FillCommand::Write(root_node, VisitCommand::Continue) =
-                self.octree.fill_root(root_key, |root_ptr, state| {
-                    filler(
-                        NodePtr::new(root_level, root_ptr),
-                        ChunkUnits(root_coords),
-                        state,
-                    )
-                })
+            if let (Some(root_node), VisitCommand::Continue) = self
+                .octree
+                .fill_root(root_key, |entry| filler(root_key, entry))
             {
                 let root_ptr = NodePtr::new(root_level, root_node.self_ptr);
-                self.octree.fill_descendants(
-                    root_ptr,
-                    root_coords,
-                    min_level,
-                    |ptr, coords, state| {
-                        let coords = ChunkUnits(coords);
-                        let chunk_extent = chunk_extent_at_level_ivec3(ptr.level(), coords);
+                self.octree
+                    .fill_descendants(root_ptr, root_coords, min_level, |key, entry| {
+                        let chunk_extent =
+                            chunk_extent_at_level_ivec3(key.level, ChunkUnits(key.coordinates));
                         let min_level_chunk_extent =
-                            chunk_extent.map(|e| descendant_extent(ptr.level() - min_level, e));
+                            chunk_extent.map(|e| descendant_extent(key.level - min_level, e));
                         let VoxelUnits(intersecting) =
                             VoxelUnits::map2(min_level_chunk_extent, min_level_extent, |e1, e2| {
                                 !e1.intersection(&e2).is_empty()
                             });
 
                         if intersecting {
-                            filler(ptr, coords, state)
+                            filler(key, entry)
                         } else {
-                            FillCommand::SkipDescendants
+                            VisitCommand::SkipDescendants
                         }
-                    },
-                )
+                    })
             }
         }
     }
@@ -112,7 +106,7 @@ impl ChunkClipMap {
         &mut self,
         min_level: Level,
         lod0_sphere: VoxelUnits<Sphere>,
-        mut filler: impl FnMut(NodePtr, ChunkUnits<IVec3>, SlotState) -> FillCommand<ChunkNode>,
+        mut filler: impl FnMut(NodeKey<IVec3>, &mut NodeEntry<'_>) -> VisitCommand,
     ) {
         let root_level = self.octree.root_level();
         let ChunkUnits(root_level_extent) =
@@ -127,32 +121,23 @@ impl ChunkClipMap {
             }
 
             let root_key = NodeKey::new(root_level, root_coords);
-            if let FillCommand::Write(root_node, VisitCommand::Continue) =
-                self.octree.fill_root(root_key, |root_ptr, state| {
-                    filler(
-                        NodePtr::new(root_level, root_ptr),
-                        ChunkUnits(root_coords),
-                        state,
-                    )
-                })
+            if let (Some(root_node), VisitCommand::Continue) = self
+                .octree
+                .fill_root(root_key, |entry| filler(root_key, entry))
             {
                 let root_ptr = NodePtr::new(root_level, root_node.self_ptr);
-                self.octree.fill_descendants(
-                    root_ptr,
-                    root_coords,
-                    min_level,
-                    |ptr, coords, state| {
-                        let coords = ChunkUnits(coords);
-                        let chunk_sphere = chunk_bounding_sphere(ptr.level(), coords);
+                self.octree
+                    .fill_descendants(root_ptr, root_coords, min_level, |node_key, entry| {
+                        let coords = ChunkUnits(node_key.coordinates);
+                        let chunk_sphere = chunk_bounding_sphere(node_key.level, coords);
                         if VoxelUnits::map2(chunk_sphere, lod0_sphere, |s1, s2| s1.intersects(&s2))
                             .into_inner()
                         {
-                            filler(ptr, coords, state)
+                            filler(root_key, entry)
                         } else {
-                            FillCommand::SkipDescendants
+                            VisitCommand::SkipDescendants
                         }
-                    },
-                )
+                    })
             }
         }
     }
@@ -228,23 +213,25 @@ mod test {
 
         // Fill in the extent with empty nodes and cache pointers to them.
         let mut node_pointers = NdView::new(
-            vec![NodePtr::NULL; chunks_extent.volume() as usize],
+            vec![NodePtr::new(0, EMPTY_ALLOC_PTR); chunks_extent.volume() as usize],
             RuntimeShape::<i32, 3>::new(chunks_extent.shape.to_array()),
         );
-        tree.fill_extent_intersections(
-            4,
-            write_extent,
-            |node_ptr, ChunkUnits(node_coords), _state| {
-                if node_ptr.level() == 4 {
-                    node_pointers[node_coords - chunks_extent.minimum] = node_ptr;
-                }
-                FillCommand::Write(ChunkNode::default(), VisitCommand::Continue)
-            },
-        );
+        tree.fill_extent_intersections(4, write_extent, |node_key, entry| {
+            let (ptr, _value) = entry.or_insert_with(ChunkNode::default);
+            if node_key.level == 4 {
+                node_pointers[node_key.coordinates - chunks_extent.minimum] =
+                    NodePtr::new(node_key.level, ptr);
+            }
+            VisitCommand::Continue
+        });
 
+        let mut num_nulls = 0;
         for &ptr in node_pointers.values.iter() {
-            assert_ne!(ptr, NodePtr::NULL);
+            if ptr.is_null() {
+                num_nulls += 1;
+            }
         }
+        assert_eq!(num_nulls, 0);
 
         // Now go back and write new chunks in O(chunks) instead of searching for each node.
         for p in chunks_extent.iter3() {
@@ -261,8 +248,9 @@ mod test {
         // Insert just a single chunk at level 0.
         let write_key = NodeKey::new(0, IVec3::new(1, 1, 1));
         tree.octree
-            .fill_path_to_node(write_key, |_node_ptr, _node_coords, _state| {
-                FillCommand::Write(ChunkNode::default(), VisitCommand::Continue)
+            .fill_path_to_node(write_key, |_node_key, entry| {
+                entry.or_insert_with(ChunkNode::default);
+                VisitCommand::Continue
             });
 
         let (_ptr, coords, [tmin, tmax]) = tree
