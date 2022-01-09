@@ -149,19 +149,10 @@ impl ChunkClipMap {
         &self,
         min_level: Level,
         extent: VoxelUnits<Extent<IVec3>>,
-        mut visitor: impl FnMut(NodePtr, ChunkUnits<IVec3>),
+        mut visitor: impl FnMut(NodePtr, ChunkUnits<IVec3>) -> VisitCommand,
     ) {
         let root_level = self.octree.root_level();
         for (root_key, root_node) in self.octree.iter_roots() {
-            let root_extent =
-                chunk_extent_at_level_ivec3(root_level, ChunkUnits(root_key.coordinates));
-            let disjoint = VoxelUnits::map2(extent, root_extent, |e1, e2| {
-                e1.intersection(&e2).is_empty()
-            })
-            .into_inner();
-            if disjoint {
-                continue;
-            }
             self.octree.visit_tree_depth_first(
                 NodePtr::new(root_level, root_node.self_ptr),
                 root_key.coordinates,
@@ -176,8 +167,7 @@ impl ChunkClipMap {
                     if disjoint {
                         VisitCommand::SkipDescendants
                     } else {
-                        visitor(ptr, coords);
-                        VisitCommand::Continue
+                        visitor(ptr, coords)
                     }
                 },
             )
