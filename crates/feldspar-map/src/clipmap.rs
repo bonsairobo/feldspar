@@ -168,8 +168,9 @@ impl ChunkClipMap {
         let mut level_diff = self.octree.root_level() - target_key.level;
         self.octree.fill_path_to_node(target_key, |key, entry| {
             let (_node_ptr, node) = entry.or_insert_with(|| {
-                let node = ChunkNode::default();
+                let mut node = ChunkNode::default();
                 node.state().set_loading();
+                node.state_mut().descendant_is_loading.set_all();
                 node
             });
             if level_diff == 0 {

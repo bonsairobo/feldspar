@@ -173,8 +173,11 @@ pub enum StateBit {
     Compressed = 1,
     /// This bit is set if the node is currently loading.
     Loading = 2,
+    /// This node and all descendants have been claimed by a pending load batch, so it should be skipped when searching for new
+    /// nodes to start loading.
+    LoadPending = 3,
     /// This bit is set if the node is currently being rendered.
-    Render = 3,
+    Render = 4,
 }
 
 impl StateBit {
@@ -223,8 +226,23 @@ impl NodeState {
     }
 
     #[inline]
-    pub fn set_loaded(&self) {
+    pub fn clear_loading(&self) {
         self.state.unset_bit(StateBit::Loading as u8)
+    }
+
+    #[inline]
+    pub fn set_load_pending(&self) {
+        self.state.set_bit(StateBit::LoadPending as u8)
+    }
+
+    #[inline]
+    pub fn clear_load_pending(&self) {
+        self.state.unset_bit(StateBit::LoadPending as u8)
+    }
+
+    #[inline]
+    pub fn has_load_pending(&self) -> bool {
+        self.state.bit_is_set(StateBit::LoadPending as u8)
     }
 
     #[inline]

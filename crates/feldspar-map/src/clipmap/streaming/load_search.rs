@@ -44,6 +44,7 @@ impl ChunkClipMap {
                 root_key.level,
                 ChunkUnits(root_key.coordinates),
                 Some(root_node.self_ptr),
+                None,
                 observer,
             ));
         }
@@ -52,6 +53,7 @@ impl ChunkClipMap {
             level,
             coordinates,
             ptr,
+            nearest_ancestor,
             ..
         }) = candidate_heap.pop()
         {
@@ -63,6 +65,12 @@ impl ChunkClipMap {
                 // We hit LOD0 so this chunk needs to be loaded.
                 rx(level, coordinates);
                 num_load_slots += 1;
+
+                // Mark the nearest ancestor as pending, assuming we don't have a node for loading level 0.
+                let nearest_ancestor_ptr = nearest_ancestor.unwrap();
+                let nearest_ancestor_node = self.octree.get_value(nearest_ancestor_ptr).unwrap();
+                nearest_ancestor_node.state().set_load_pending();
+
                 continue;
             }
             let child_level = level - 1;
@@ -76,6 +84,9 @@ impl ChunkClipMap {
                     // All descendants have loaded, so this slot is ready to be downsampled.
                     rx(level, coordinates);
 
+                    // When the node is marked as loaded, we will clear this pending bit.
+                    node.state().set_load_pending();
+
                     // Leaving this commented, we are choosing not to count LOD > 0 against the budget. Downsampling is much
                     // faster than generating LOD0, and there are many more LOD0 chunks, so it seems fair to just let as much
                     // downsampling happen as possible.
@@ -87,25 +98,34 @@ impl ChunkClipMap {
                 // If we're on a nonzero level, visit all children that need loading, regardless of which child nodes exist.
                 if let Some(child_pointers) = self.octree.child_pointers(ptr) {
                     visit_children(coordinates.into_inner(), |child_index, child_coords| {
-                        if node.state().descendant_is_loading.bit_is_set(child_index) {
+                        if !node.state().has_load_pending()
+                            && node.state().descendant_is_loading.bit_is_set(child_index)
+                        {
                             let child_ptr = child_pointers.get_child(child_index);
                             candidate_heap.push(LoadSearchNode::new(
                                 child_level,
                                 ChunkUnits(child_coords),
                                 child_ptr.map(|p| p.alloc_ptr()),
+                                Some(ptr),
                                 observer,
                             ));
                         }
                     })
                 }
-            } else {
-                // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be
-                // loaded.
+            } else if level < self.stream_config.load_level {
+                // We only recurse on missing nodes if we're under the load level. This is because when *any* new node is
+                // inserted as a result of calling ChunkClipMap::insert_loading_node, all of its "descendant_is_loading" bits
+                // are set. So during this search, we may get directed to empty nodes outside of the clip sphere by these bits
+                // if we're at or above the load level. But below the load level, we want to search for any descendants of
+                // load-level nodes that exist, i.e. load-level nodes that intersected the clip sphere.
+
+                // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be loaded.
                 visit_children(coordinates.into_inner(), |_child_index, child_coords| {
                     candidate_heap.push(LoadSearchNode::new(
                         child_level,
                         ChunkUnits(child_coords),
                         None,
+                        nearest_ancestor,
                         observer,
                     ));
                 })
@@ -121,6 +141,7 @@ struct LoadSearchNode {
     closest_dist_to_observer: VoxelUnits<f32>,
     // Optional because we might search into vacant space.
     ptr: Option<AllocPtr>,
+    nearest_ancestor: Option<NodePtr>,
 }
 
 impl LoadSearchNode {
@@ -128,6 +149,7 @@ impl LoadSearchNode {
         level: Level,
         coordinates: ChunkUnits<IVec3>,
         ptr: Option<AllocPtr>,
+        nearest_ancestor: Option<NodePtr>,
         observer: VoxelUnits<Vec3A>,
     ) -> Self {
         let VoxelUnits(observer) = observer;
@@ -142,6 +164,7 @@ impl LoadSearchNode {
             level,
             coordinates,
             ptr,
+            nearest_ancestor,
             closest_dist_to_observer: VoxelUnits(closest_dist_to_observer),
         }
     }
