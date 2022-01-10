@@ -3,6 +3,7 @@ mod node;
 mod raycast;
 mod streaming;
 
+use crate::chunk::CompressedChunk;
 use crate::coordinates::{
     ancestor_extent, chunk_bounding_sphere, chunk_extent_at_level_ivec3, descendant_extent,
     in_chunk_extent, sphere_intersecting_ancestor_chunk_extent,
@@ -186,6 +187,14 @@ impl ChunkClipMap {
                 VisitCommand::Continue
             }
         })
+    }
+
+    pub fn fulfill_pending_load(
+        &mut self,
+        loaded_key: NodeKey<IVec3>,
+        data: Option<CompressedChunk>,
+    ) {
+        todo!()
     }
 }
 

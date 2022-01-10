@@ -61,3 +61,10 @@ impl From<NodeKey<IVec3>> for ChunkDbKey {
         Self::new(node.level, node.coordinates.into())
     }
 }
+
+impl Into<NodeKey<IVec3>> for ChunkDbKey {
+    #[inline]
+    fn into(self) -> NodeKey<IVec3> {
+        NodeKey::new(self.level, self.morton.into())
+    }
+}

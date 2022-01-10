@@ -1,10 +1,10 @@
 use super::{ArchivedIVec, ChunkDbKey};
 use crate::chunk::CompressedChunk;
-use crate::core::{NoSharedAllocSerializer, SmallKeyHashMap};
 use crate::core::rkyv::{
     ser::{serializers::CoreSerializer, Serializer},
     AlignedBytes, AlignedVec, Archive, Archived, Deserialize, Serialize,
 };
+use crate::core::{NoSharedAllocSerializer, SmallKeyHashMap};
 
 use sled::IVec;
 
@@ -16,6 +16,13 @@ pub enum Change<T> {
 }
 
 impl<T> Change<T> {
+    pub fn unwrap_insert(self) -> T {
+        match self {
+            Change::Insert(x) => x,
+            Change::Remove => panic!("Unwrapped on Change::Remove"),
+        }
+    }
+
     pub fn map<S>(self, mut f: impl FnMut(T) -> S) -> Change<S> {
         match self {
             Change::Insert(x) => Change::Insert(f(x)),

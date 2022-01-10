@@ -62,7 +62,13 @@ pub fn loader_system(
     while let Some(mut task) = load_tasks.tasks.pop_front() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
             // Insert the chunks into the clipmap and mark the nodes as loaded.
-            todo!()
+            for (key, archived_chunk) in loaded_batch.reads.into_iter() {
+                clipmap.fulfill_pending_load(
+                    key.into(),
+                    // PERF: maybe just decompress directly from the archived bytes here?
+                    archived_chunk.map(|c| c.deserialize().unwrap_insert()),
+                )
+            }
         } else {
             load_tasks.tasks.push_front(task);
         }
