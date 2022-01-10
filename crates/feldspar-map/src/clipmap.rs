@@ -116,31 +116,19 @@ impl ChunkClipMap {
 
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
-            let root_sphere = chunk_bounding_sphere(root_level, ChunkUnits(root_coords));
-            if !VoxelUnits::map2(lod0_sphere, root_sphere, |s1, s2| s1.intersects(&s2)).into_inner()
-            {
-                continue;
-            }
-
             let root_key = NodeKey::new(root_level, root_coords);
-            if let (Some(root_node), VisitCommand::Continue) = self
-                .octree
-                .fill_root(root_key, |entry| filler(root_key, entry))
-            {
-                let root_ptr = NodePtr::new(root_level, root_node.self_ptr);
-                self.octree
-                    .fill_descendants(root_ptr, root_coords, min_level, |node_key, entry| {
-                        let coords = ChunkUnits(node_key.coordinates);
-                        let chunk_sphere = chunk_bounding_sphere(node_key.level, coords);
-                        if VoxelUnits::map2(chunk_sphere, lod0_sphere, |s1, s2| s1.intersects(&s2))
-                            .into_inner()
-                        {
-                            filler(root_key, entry)
-                        } else {
-                            VisitCommand::SkipDescendants
-                        }
-                    })
-            }
+            self.octree
+                .fill_tree_from_root(root_key, min_level, |node_key, entry| {
+                    let coords = ChunkUnits(node_key.coordinates);
+                    let chunk_sphere = chunk_bounding_sphere(node_key.level, coords);
+                    let VoxelUnits(intersects) =
+                        VoxelUnits::map2(chunk_sphere, lod0_sphere, |s1, s2| s1.intersects(&s2));
+                    if intersects {
+                        filler(root_key, entry)
+                    } else {
+                        VisitCommand::SkipDescendants
+                    }
+                });
         }
     }
 
