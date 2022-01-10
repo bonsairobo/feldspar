@@ -10,12 +10,12 @@ bevy_plugin = ["bevy", "futures-lite"]
 bytemuck = "1.7"
 either = "1.6"
 float-ord = "0.3"
-grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", branch = "main" }
-grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", branch = "main" }
+grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", rev = "0fd6c561" }
+grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", rev = "4d30861b" }
 itertools = "0.10"
 log = "0.4"
 lz4_flex = "0.9"
-ndshape = { git = "https://github.com/bonsairobo/ndshape-rs", branch = "main" }
+ndshape = { git = "https://github.com/bonsairobo/ndshape-rs", rev = "d184932c" }
 parking_lot = "0.11"
 serde = { version = "1.0", features = ["derive"]} # Can't go in core because re-exporting it breaks macros.
 # NB: need 8-byte alignment guarantee from sled on main branch; not in stable release yet
@@ -30,7 +30,7 @@ futures-lite = { version = "1.12", optional = true }
 # Optional; enable to get the Bevy plugin.
 [dependencies.bevy]
 git = "https://github.com/bevyengine/bevy"
-branch = "main"
+rev = "fc0f15f1"
 default-features = false
 optional = true
 

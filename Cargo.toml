@@ -28,10 +28,10 @@ feldspar-core = { path = "crates/feldspar-core", version = "0.1" }
 feldspar-map = { path = "crates/feldspar-map", version = "0.1", features = ["bevy_plugin"] }
 feldspar-renderer = { path = "crates/feldspar-renderer", version = "0.1" }
 
-smooth-bevy-cameras = { git = "https://github.com/bonsairobo/smooth-bevy-cameras", branch = "main" }
+smooth-bevy-cameras = { git = "https://github.com/bonsairobo/smooth-bevy-cameras", rev = "383de21c" }
 
 [dependencies.bevy]
 git = "https://github.com/bevyengine/bevy"
-branch = "main"
+rev = "fc0f15f1"
 default-features = false
 features = ["render", "png", "x11"]

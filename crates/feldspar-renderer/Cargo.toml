@@ -12,6 +12,6 @@ fast-surface-nets = "0.1"
 
 [dependencies.bevy]
 git = "https://github.com/bevyengine/bevy"
-branch = "main"
+rev = "fc0f15f1"
 default-features = false
 features = ["render", "png", "x11"]
