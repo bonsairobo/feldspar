@@ -1,5 +1,5 @@
 use crate::clipmap::neighborhood_subdiv::{NEIGHBORHOODS, NEIGHBORHOODS_PARENTS};
-use crate::clipmap::ChunkClipMap;
+use crate::clipmap::{ChunkClipMap, NodeState};
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
@@ -35,8 +35,7 @@ pub struct RenderNeighborhood {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Neighbor {
-    /// This node exists in the clipmap octree. It might be loading, but we need to check the
-    /// [`NodeState`](crate::clipmap::NodeState).
+    /// This node exists in the clipmap octree. It might be loading, but we need to check the [`NodeState`].
     Occupied(AllocPtr),
     /// An ancestor indicated this slot was empty.
     Empty { loaded: bool },
@@ -81,35 +80,9 @@ impl ChunkClipMap {
         let VoxelUnits(clip_radius) = self.stream_config.clip_sphere_radius;
         let clip_sphere = Sphere::new(observer, clip_radius);
 
-        let node_intersects_clip_sphere = |key: NodeKey<IVec3>| {
-            let VoxelUnits(chunk_bounding_sphere) =
-                chunk_bounding_sphere(key.level, ChunkUnits(key.coordinates));
-            clip_sphere.intersects(&chunk_bounding_sphere)
-        };
-
         let mut candidate_heap = BinaryHeap::new();
 
-        // Put root neighborhoods in the candidate heap.
-        for root_key in self.octree.iter_root_keys() {
-            let mut neighborhood = [Neighbor::Empty { loaded: false }; 8];
-            for (&offset, target_neighbor) in CUBE_CORNERS.iter().zip(neighborhood.iter_mut()) {
-                let neighbor_key = NodeKey::new(root_key.level, root_key.coordinates + offset);
-
-                *target_neighbor = if let Some(root_node) = self.octree.find_root(neighbor_key) {
-                    Neighbor::Occupied(root_node.self_ptr)
-                } else {
-                    Neighbor::Empty {
-                        loaded: node_intersects_clip_sphere(neighbor_key),
-                    }
-                };
-            }
-            candidate_heap.push(RenderSearchNode::new(
-                root_key.level,
-                ChunkUnits(root_key.coordinates),
-                neighborhood,
-                VoxelUnits(observer),
-            ));
-        }
+        self.add_root_neighborhoods_to_heap(clip_sphere, &mut candidate_heap);
 
         // Recursively search for changes in render LOD.
         //
@@ -156,50 +129,23 @@ impl ChunkClipMap {
                 (true, true) => (),
                 // Old and new frames agree this node is not active. Keep searching down this path if possible.
                 (false, false) => {
-                    // Add all child neighborhoods to the heap.
-                    let child_neighborhoods =
-                        self.construct_child_neighborhoods(min_neighbor_ptr, &nhood.neighbors);
-                    for (&child_offset, n) in
-                        CUBE_CORNERS.iter().zip(child_neighborhoods.into_iter())
-                    {
-                        if let Some(child_neighborhood) = n {
-                            candidate_heap.push(RenderSearchNode::new(
-                                child_neighborhood.level,
-                                ChunkUnits(coordinates + child_offset),
-                                child_neighborhood.neighbors,
-                                VoxelUnits(observer),
-                            ));
-                        }
-                    }
+                    self.add_child_neighborhoods_to_heap(
+                        clip_sphere,
+                        coordinates,
+                        &nhood,
+                        min_neighbor_ptr,
+                        &mut candidate_heap,
+                    );
                 }
                 // This node just became inactive, and none of its ancestors were active, so it must have active descendants.
                 (true, false) => {
-                    // This chunk could potentially need to split over multiple levels, but we need to be careful not to run out
-                    // of render chunk budget. To be fair to other chunks in the queue that need to be split, we will only split
-                    // by one level for now.
-
-                    let child_neighborhoods =
-                        self.construct_child_neighborhoods(min_neighbor_ptr, &nhood.neighbors);
-
-                    // Make sure all child neighborhoods are loaded.
-                    for nhood in child_neighborhoods.iter().flatten() {
-                        if !self.neighborhood_is_loaded(nhood) {
-                            continue;
-                        }
-                    }
-
-                    // At this point, we've committed to meshing the children.
-                    min_node_state.state.unset_bit(StateBit::Render as u8);
-                    self.octree
-                        .visit_children(min_neighbor_ptr, |child_ptr, _| {
-                            let child_node = self.octree.get_value(child_ptr).unwrap();
-                            child_node.state().state.set_bit(StateBit::Render as u8);
-                            num_render_chunks += 1;
-                        });
-                    rx(LodChange::Split(Box::new(SplitChunk {
-                        old_chunk: NodeLocation::new(ChunkUnits(coordinates), min_neighbor_ptr),
-                        new_chunks: child_neighborhoods,
-                    })));
+                    num_render_chunks += self.split_neighborhood(
+                        coordinates,
+                        &nhood,
+                        min_neighbor_ptr,
+                        min_node_state,
+                        &mut rx,
+                    );
                 }
                 // Node just became active, and none of its ancestors were active.
                 (false, true) => {
@@ -218,43 +164,143 @@ impl ChunkClipMap {
                         continue;
                     }
 
-                    // This node might have active descendants. Merge those active descendants into this node.
-                    let mut deactivate_nodes = SmallVec::<[NodeLocation; 8]>::new();
-                    self.octree
-                        .visit_children(min_neighbor_ptr, |child_ptr, _| {
-                            self.octree.visit_tree_depth_first(
-                                child_ptr,
-                                coordinates,
-                                0,
-                                |node_ptr, node_coords| {
-                                    let descendant_node = self.octree.get_value(node_ptr).unwrap();
-                                    let descendant_was_active = descendant_node
-                                        .state()
-                                        .state
-                                        .fetch_and_unset_bit(StateBit::Render as u8);
-                                    if descendant_was_active {
-                                        deactivate_nodes.push(NodeLocation::new(
-                                            ChunkUnits(node_coords),
-                                            node_ptr,
-                                        ));
-                                        VisitCommand::SkipDescendants
-                                    } else {
-                                        VisitCommand::Continue
-                                    }
-                                },
-                            )
-                        });
-
-                    if deactivate_nodes.is_empty() {
-                        rx(LodChange::Spawn(nhood));
-                    } else {
-                        rx(LodChange::Merge(MergeChunks {
-                            old_chunks: deactivate_nodes,
-                            new_chunk: nhood,
-                        }));
-                    }
+                    self.merge_into_neighborhood(coordinates, nhood, min_neighbor_ptr, &mut rx);
                 }
             }
+        }
+    }
+
+    fn add_root_neighborhoods_to_heap(
+        &self,
+        clip_sphere: Sphere,
+        candidate_heap: &mut BinaryHeap<RenderSearchNode>,
+    ) {
+        let node_intersects_clip_sphere = |key: NodeKey<IVec3>| {
+            let VoxelUnits(chunk_bounding_sphere) =
+                chunk_bounding_sphere(key.level, ChunkUnits(key.coordinates));
+            clip_sphere.intersects(&chunk_bounding_sphere)
+        };
+
+        // Put root neighborhoods in the candidate heap.
+        for root_key in self.octree.iter_root_keys() {
+            let mut neighborhood = [Neighbor::Empty { loaded: false }; 8];
+            for (&offset, target_neighbor) in CUBE_CORNERS.iter().zip(neighborhood.iter_mut()) {
+                let neighbor_key = NodeKey::new(root_key.level, root_key.coordinates + offset);
+
+                *target_neighbor = if let Some(root_node) = self.octree.find_root(neighbor_key) {
+                    Neighbor::Occupied(root_node.self_ptr)
+                } else {
+                    Neighbor::Empty {
+                        loaded: node_intersects_clip_sphere(neighbor_key),
+                    }
+                };
+            }
+            candidate_heap.push(RenderSearchNode::new(
+                root_key.level,
+                ChunkUnits(root_key.coordinates),
+                neighborhood,
+                VoxelUnits(clip_sphere.center),
+            ));
+        }
+    }
+
+    fn add_child_neighborhoods_to_heap(
+        &self,
+        clip_sphere: Sphere,
+        parent_coords: IVec3,
+        parent_nhood: &RenderNeighborhood,
+        min_neighbor_ptr: NodePtr,
+        candidate_heap: &mut BinaryHeap<RenderSearchNode>,
+    ) {
+        // Add all child neighborhoods to the heap.
+        let child_neighborhoods =
+            self.construct_child_neighborhoods(min_neighbor_ptr, &parent_nhood.neighbors);
+        for (&child_offset, n) in CUBE_CORNERS.iter().zip(child_neighborhoods.into_iter()) {
+            if let Some(child_neighborhood) = n {
+                candidate_heap.push(RenderSearchNode::new(
+                    child_neighborhood.level,
+                    ChunkUnits(parent_coords + child_offset),
+                    child_neighborhood.neighbors,
+                    VoxelUnits(clip_sphere.center),
+                ));
+            }
+        }
+    }
+
+    fn split_neighborhood(
+        &self,
+        coords: IVec3,
+        nhood: &RenderNeighborhood,
+        min_neighbor_ptr: NodePtr,
+        min_node_state: &NodeState,
+        mut rx: impl FnMut(LodChange),
+    ) -> usize {
+        // This chunk could potentially need to split over multiple levels, but we need to be careful not to run out
+        // of render chunk budget. To be fair to other chunks in the queue that need to be split, we will only split
+        // by one level for now.
+
+        let child_neighborhoods =
+            self.construct_child_neighborhoods(min_neighbor_ptr, &nhood.neighbors);
+
+        // Make sure all child neighborhoods are loaded.
+        for nhood in child_neighborhoods.iter().flatten() {
+            if !self.neighborhood_is_loaded(nhood) {
+                continue;
+            }
+        }
+
+        // At this point, we've committed to meshing the children.
+        let mut num_render_chunks = 0;
+        min_node_state.state.unset_bit(StateBit::Render as u8);
+        self.octree
+            .visit_children(min_neighbor_ptr, |child_ptr, _| {
+                let child_node = self.octree.get_value(child_ptr).unwrap();
+                child_node.state().state.set_bit(StateBit::Render as u8);
+                num_render_chunks += 1;
+            });
+        rx(LodChange::Split(Box::new(SplitChunk {
+            old_chunk: NodeLocation::new(ChunkUnits(coords), min_neighbor_ptr),
+            new_chunks: child_neighborhoods,
+        })));
+
+        num_render_chunks
+    }
+
+    fn merge_into_neighborhood(
+        &self,
+        coords: IVec3,
+        nhood: RenderNeighborhood,
+        min_neighbor_ptr: NodePtr,
+        mut rx: impl FnMut(LodChange),
+    ) {
+        // This node might have active descendants. Merge those active descendants into this node.
+        let mut deactivate_nodes = SmallVec::<[NodeLocation; 8]>::new();
+        self.octree
+            .visit_children(min_neighbor_ptr, |child_ptr, _| {
+                self.octree
+                    .visit_tree_depth_first(child_ptr, coords, 0, |node_ptr, node_coords| {
+                        let descendant_node = self.octree.get_value(node_ptr).unwrap();
+                        let descendant_was_active = descendant_node
+                            .state()
+                            .state
+                            .fetch_and_unset_bit(StateBit::Render as u8);
+                        if descendant_was_active {
+                            deactivate_nodes
+                                .push(NodeLocation::new(ChunkUnits(node_coords), node_ptr));
+                            VisitCommand::SkipDescendants
+                        } else {
+                            VisitCommand::Continue
+                        }
+                    })
+            });
+
+        if deactivate_nodes.is_empty() {
+            rx(LodChange::Spawn(nhood));
+        } else {
+            rx(LodChange::Merge(MergeChunks {
+                old_chunks: deactivate_nodes,
+                new_chunk: nhood,
+            }));
         }
     }
 
