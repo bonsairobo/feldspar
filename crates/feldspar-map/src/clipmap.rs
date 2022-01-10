@@ -76,6 +76,8 @@ impl ChunkClipMap {
         // Recurse on each tree.
         for root_coords in root_level_extent.iter3() {
             let root_key = NodeKey::new(root_level, root_coords);
+            // We know that every root in root_level_extent intersects min_level_extent, so we only do intersection checks for
+            // descendants.
             if let (Some(root_node), VisitCommand::Continue) = self
                 .octree
                 .fill_root(root_key, |entry| filler(root_key, entry))
