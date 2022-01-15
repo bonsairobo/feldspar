@@ -1,9 +1,8 @@
-use super::StreamingConfig;
 use crate::clipmap::ChunkClipMap;
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
-    clipmap::Level,
+    clipmap::{ChunkNode, Level, NodeState, VisitCommand},
     coordinates::{
         chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent, visit_children,
     },
@@ -28,9 +27,52 @@ impl NodeSlot {
 }
 
 impl ChunkClipMap {
+    /// Searches for root nodes that entered the clip sphere this frame and inserts them as "load sentinel" nodes to be used by
+    /// the near-phase search.
+    pub fn broad_phase_load_search(
+        &mut self,
+        old_observer: VoxelUnits<Vec3A>,
+        new_observer: VoxelUnits<Vec3A>,
+    ) {
+        let VoxelUnits(old_observer) = old_observer;
+        let VoxelUnits(new_observer) = new_observer;
+        let VoxelUnits(clip_radius) = self.stream_config.clip_sphere_radius;
+        let root_level = self.octree.root_level();
+
+        let old_clip_sphere = Sphere::new(old_observer, clip_radius);
+        let new_clip_sphere = Sphere::new(new_observer, clip_radius);
+        let ChunkUnits(new_root_level_extent) =
+            sphere_intersecting_ancestor_chunk_extent(VoxelUnits(new_clip_sphere), root_level);
+
+        for root_coords in new_root_level_extent.iter3() {
+            let VoxelUnits(root_sphere) =
+                chunk_bounding_sphere(root_level, ChunkUnits(root_coords));
+
+            let dist_to_new_clip_sphere = root_sphere.center.distance(new_clip_sphere.center);
+            let node_intersects_new_clip_sphere =
+                dist_to_new_clip_sphere - root_sphere.radius < new_clip_sphere.radius;
+
+            if !node_intersects_new_clip_sphere {
+                return;
+            }
+
+            // Only insert if the node didn't already intersect the clip sphere.
+            let dist_to_old_clip_sphere = root_sphere.center.distance(old_clip_sphere.center);
+            let node_intersects_old_clip_sphere =
+                dist_to_old_clip_sphere - root_sphere.radius < old_clip_sphere.radius;
+            if !node_intersects_old_clip_sphere {
+                let root_key = NodeKey::new(root_level, root_coords);
+                self.octree.fill_root(root_key, |entry| {
+                    entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_load_sentinel()));
+                    VisitCommand::SkipDescendants
+                });
+            }
+        }
+    }
+
     /// Searches for up to `budget` of the nodes marked as "loading." It is up to the caller to subsequently write or delete the
     /// data in the loading nodes so that they get marked as "loaded".
-    pub fn loading_nodes(
+    pub fn near_phase_load_search(
         &self,
         budget: usize,
         observer: VoxelUnits<Vec3A>,
@@ -198,82 +240,5 @@ impl Ord for LoadSearchNode {
         )
         .into_inner()
         .reverse()
-    }
-}
-
-pub fn new_nodes_intersecting_sphere(
-    config: StreamingConfig,
-    root_level: Level,
-    old_observer: VoxelUnits<Vec3A>,
-    new_observer: VoxelUnits<Vec3A>,
-    mut rx: impl FnMut(NodeSlot),
-) {
-    let old_clip_sphere = VoxelUnits::map2(old_observer, config.clip_sphere_radius, Sphere::new);
-    let new_clip_sphere = VoxelUnits::map2(new_observer, config.clip_sphere_radius, Sphere::new);
-    let ChunkUnits(new_root_level_extent) =
-        sphere_intersecting_ancestor_chunk_extent(new_clip_sphere, root_level);
-
-    for root_coords in new_root_level_extent.iter3() {
-        new_nodes_intersecting_sphere_recursive(
-            ChunkUnits(root_coords),
-            root_level,
-            config,
-            old_clip_sphere,
-            new_clip_sphere,
-            &mut rx,
-        );
-    }
-}
-
-fn new_nodes_intersecting_sphere_recursive(
-    node_coords: ChunkUnits<IVec3>,
-    node_level: Level,
-    config: StreamingConfig,
-    old_clip_sphere: VoxelUnits<Sphere>,
-    new_clip_sphere: VoxelUnits<Sphere>,
-    rx: &mut impl FnMut(NodeSlot),
-) {
-    let VoxelUnits(detail) = config.detail;
-    let VoxelUnits(old_clip_sphere) = old_clip_sphere;
-    let VoxelUnits(new_clip_sphere) = new_clip_sphere;
-    let VoxelUnits(node_sphere) = chunk_bounding_sphere(node_level, node_coords);
-
-    let dist_to_new_clip_sphere = node_sphere.center.distance(new_clip_sphere.center);
-    let node_intersects_new_clip_sphere =
-        dist_to_new_clip_sphere - node_sphere.radius < new_clip_sphere.radius;
-
-    if !node_intersects_new_clip_sphere {
-        // There are no events for this node or any of its descendants.
-        return;
-    }
-
-    if node_level > config.min_load_level {
-        let child_level = node_level - 1;
-        visit_children(node_coords.into_inner(), |_child_index, child_coords| {
-            new_nodes_intersecting_sphere_recursive(
-                ChunkUnits(child_coords),
-                child_level,
-                config,
-                VoxelUnits(old_clip_sphere),
-                VoxelUnits(new_clip_sphere),
-                rx,
-            );
-        });
-    } else {
-        let dist_to_old_clip_sphere = node_sphere.center.distance(old_clip_sphere.center);
-        let node_intersects_old_clip_sphere =
-            dist_to_old_clip_sphere - node_sphere.radius < old_clip_sphere.radius;
-        if !node_intersects_old_clip_sphere {
-            // This is the LOD where we want to detect entrances into the clip sphere.
-            let is_render_candidate =
-                node_level == 0 || dist_to_new_clip_sphere / node_sphere.radius > detail;
-
-            rx(NodeSlot {
-                coordinates: node_coords,
-                level: node_level,
-                dist: dist_to_new_clip_sphere,
-                is_render_candidate,
-            });
-        }
     }
 }

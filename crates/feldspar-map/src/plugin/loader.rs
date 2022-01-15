@@ -1,7 +1,7 @@
 use super::config::MapConfig;
 use super::Witness;
 use crate::chunk::CompressedChunk;
-use crate::clipmap::{new_nodes_intersecting_sphere, ChunkClipMap};
+use crate::clipmap::ChunkClipMap;
 use crate::database::{ArchivedChangeIVec, ChunkDbKey, MapDb};
 use crate::units::VoxelUnits;
 
@@ -86,13 +86,7 @@ pub fn loader_system(
             let new_witness_pos = VoxelUnits(Vec3A::from(tfm.translation.to_array()));
 
             // Insert loading sentinel nodes to mark trees for async loading.
-            new_nodes_intersecting_sphere(
-                config.streaming,
-                clipmap.octree.root_level(),
-                old_witness_pos,
-                new_witness_pos,
-                |node_slot| clipmap.insert_loading_node(node_slot.node_key()),
-            );
+            clipmap.broad_phase_load_search(old_witness_pos, new_witness_pos);
 
             if load_tasks.num_tasks() >= config.loader.max_pending_load_tasks {
                 continue;
@@ -100,7 +94,7 @@ pub fn loader_system(
 
             // Find a batch of nodes to load.
             let mut batch_keys = Vec::with_capacity(config.loader.load_batch_size);
-            clipmap.loading_nodes(
+            clipmap.near_phase_load_search(
                 config.loader.load_batch_size,
                 new_witness_pos,
                 |level, coords| {

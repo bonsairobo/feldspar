@@ -169,12 +169,8 @@ impl ChunkClipMap {
     pub fn insert_loading_node(&mut self, target_key: NodeKey<IVec3>) {
         let mut level_diff = self.octree.root_level() - target_key.level;
         self.octree.fill_path_to_node(target_key, |key, entry| {
-            let (_node_ptr, node) = entry.or_insert_with(|| {
-                let mut node = ChunkNode::default();
-                node.state().set_loading();
-                node.state_mut().descendant_is_loading.set_all();
-                node
-            });
+            let (_node_ptr, node) =
+                entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_load_sentinel()));
             if level_diff == 0 {
                 node.state_mut().descendant_is_loading.set_all();
                 VisitCommand::SkipDescendants
@@ -242,7 +238,8 @@ mod test {
             RuntimeShape::<i32, 3>::new(chunks_extent.shape.to_array()),
         );
         tree.fill_extent_intersections(4, write_extent, |node_key, entry| {
-            let (ptr, _value) = entry.or_insert_with(ChunkNode::default);
+            let (ptr, _value) =
+                entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_zeroed()));
             if node_key.level == 4 {
                 node_pointers[node_key.coordinates - chunks_extent.minimum] =
                     NodePtr::new(node_key.level, ptr);
@@ -262,7 +259,7 @@ mod test {
         for p in chunks_extent.iter3() {
             let ptr = node_pointers[p];
             *tree.octree.get_value_mut(ptr).unwrap() =
-                ChunkNode::new_compressed(Chunk::default().compress(), NodeState::default());
+                ChunkNode::new_compressed(Chunk::default().compress(), NodeState::new_zeroed());
         }
     }
 
@@ -274,7 +271,7 @@ mod test {
         let write_key = NodeKey::new(0, IVec3::new(1, 1, 1));
         tree.octree
             .fill_path_to_node(write_key, |_node_key, entry| {
-                entry.or_insert_with(ChunkNode::default);
+                entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_zeroed()));
                 VisitCommand::Continue
             });
 

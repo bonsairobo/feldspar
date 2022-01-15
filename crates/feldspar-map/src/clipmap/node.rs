@@ -14,7 +14,6 @@ use std::sync::atomic::Ordering;
 ///
 /// While the chunk is compressed, readers will take an exclusive lock and wait for one of the readers to decompress the chunk
 /// before continuing. Decompression should happen at most once per frame.
-#[derive(Default)]
 pub struct ChunkNode {
     chunk: RwLock<ChunkSlot>,
     state: NodeState,
@@ -189,13 +188,31 @@ impl StateBit {
 const OCCUPIED_MASK: u8 = StateBit::Occupied.mask();
 const COMPRESSED_MASK: u8 = StateBit::Compressed.mask();
 
-#[derive(Default)]
 pub struct NodeState {
     pub(crate) descendant_is_loading: Bitset8,
     pub(crate) state: AtomicBitset8,
 }
 
 impl NodeState {
+    #[inline]
+    pub fn new_zeroed() -> Self {
+        Self {
+            descendant_is_loading: Bitset8::default(),
+            state: AtomicBitset8::default(),
+        }
+    }
+
+    #[inline]
+    pub fn new_load_sentinel() -> Self {
+        let mut new = Self {
+            descendant_is_loading: Bitset8::default(),
+            state: AtomicBitset8::default(),
+        };
+        new.descendant_is_loading.set_all();
+        new.set_loading();
+        new
+    }
+
     #[inline]
     pub fn slot_state(&self) -> SlotState {
         const MASK: u8 = OCCUPIED_MASK | COMPRESSED_MASK;
@@ -313,7 +330,7 @@ mod test {
     fn chunk_node_data_slot_round_trip() {
         let compressed_chunk = Chunk::default().compress();
 
-        let mut node = ChunkNode::new_empty(NodeState::default());
+        let mut node = ChunkNode::new_empty(NodeState::new_zeroed());
 
         let chunk = Box::new(Chunk::default());
         let old = node.put_decompressed(chunk);
