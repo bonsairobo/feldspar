@@ -20,6 +20,7 @@ pub use node::*;
 pub use streaming::*;
 
 use grid_tree::OctreeI32;
+use smallvec::SmallVec;
 
 pub const CHILDREN: ChildIndex = OctreeI32::<()>::CHILDREN;
 pub const CHILDREN_USIZE: usize = CHILDREN as usize;
@@ -194,7 +195,16 @@ impl ChunkClipMap {
         loaded_key: NodeKey<IVec3>,
         data: Option<CompressedChunk>,
     ) {
-        todo!()
+        // We need to ensure a couple things:
+        // 1. If we insert a `None`, then we need to check if we're the last sibling node finished loading and maybe collapse
+        //    into the parent node if all children are empty. This continues recursively to the root, but we will leave empty
+        //    roots so we at least know they are loaded.
+        // 2. A very similar process needs to happen for the `descendant_is_loading` bits. The last child loaded checks if the
+        //    grandparent is entirely loaded, etc.
+        //
+        // Structurally, this algorithm finds the path to `loaded_key` and then retraces that path backwards in order to fix up
+        // ancestors.
+        let mut path = SmallVec::<[NodePtr; 32]>::new();
     }
 }
 

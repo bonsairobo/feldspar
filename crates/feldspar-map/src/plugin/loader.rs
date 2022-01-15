@@ -44,8 +44,12 @@ impl PendingLoadTasks {
         self.tasks.len()
     }
 
-    pub fn add_task(&mut self, task: Task<LoadedBatch>) {
+    pub fn push(&mut self, task: Task<LoadedBatch>) {
         self.tasks.push_back(task);
+    }
+
+    pub fn pop(&mut self) -> Option<Task<LoadedBatch>> {
+        self.tasks.pop_front()
     }
 }
 
@@ -59,7 +63,7 @@ pub fn loader_system(
 ) {
     // Complete pending load tasks in queue order.
     // PERF: is this the best way to poll a sequence of futures?
-    while let Some(mut task) = load_tasks.tasks.pop_front() {
+    while let Some(mut task) = load_tasks.pop() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
             // Insert the chunks into the clipmap and mark the nodes as loaded.
             for (key, archived_chunk) in loaded_batch.reads.into_iter() {
@@ -70,7 +74,7 @@ pub fn loader_system(
                 )
             }
         } else {
-            load_tasks.tasks.push_front(task);
+            load_tasks.push(task);
         }
     }
 
@@ -95,7 +99,7 @@ pub fn loader_system(
             }
 
             // Find a batch of nodes to load.
-            let mut batch_keys = Vec::new();
+            let mut batch_keys = Vec::with_capacity(config.loader.load_batch_size);
             clipmap.loading_nodes(
                 config.loader.load_batch_size,
                 new_witness_pos,
