@@ -112,7 +112,7 @@ impl ChunkClipMap {
                         }
                     })
                 }
-            } else if level < self.stream_config.load_level {
+            } else if level < self.stream_config.min_load_level {
                 // We only recurse on missing nodes if we're under the load level. This is because when *any* new node is
                 // inserted as a result of calling ChunkClipMap::insert_loading_node, all of its "descendant_is_loading" bits
                 // are set. So during this search, we may get directed to empty nodes outside of the clip sphere by these bits
@@ -247,7 +247,7 @@ fn new_nodes_intersecting_sphere_recursive(
         return;
     }
 
-    if node_level > config.load_level {
+    if node_level > config.min_load_level {
         let child_level = node_level - 1;
         visit_children(node_coords.into_inner(), |_child_index, child_coords| {
             new_nodes_intersecting_sphere_recursive(
