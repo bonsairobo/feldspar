@@ -34,7 +34,7 @@ fn main() {
         // Viewer
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
-        .add_startup_system(setup.system())
+        .add_startup_system(setup)
         .run();
 }
 

@@ -39,20 +39,6 @@ pub struct PendingLoadTasks {
     tasks: VecDeque<Task<LoadedBatch>>,
 }
 
-impl PendingLoadTasks {
-    pub fn num_tasks(&self) -> usize {
-        self.tasks.len()
-    }
-
-    pub fn push(&mut self, task: Task<LoadedBatch>) {
-        self.tasks.push_back(task);
-    }
-
-    pub fn pop(&mut self) -> Option<Task<LoadedBatch>> {
-        self.tasks.pop_front()
-    }
-}
-
 pub fn loader_system(
     config: Res<MapConfig>,
     witness_transforms: Query<(&Witness, &Transform)>,
@@ -61,20 +47,23 @@ pub fn loader_system(
     mut clipmap: ResMut<ChunkClipMap>,
     mut load_tasks: ResMut<PendingLoadTasks>,
 ) {
+    let PendingLoadTasks { tasks } = &mut *load_tasks;
+
     // Complete pending load tasks in queue order.
     // PERF: is this the best way to poll a sequence of futures?
-    while let Some(mut task) = load_tasks.pop() {
+    while let Some(mut task) = tasks.pop_front() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
             // Insert the chunks into the clipmap and mark the nodes as loaded.
             for (key, archived_chunk) in loaded_batch.reads.into_iter() {
-                clipmap.fulfill_pending_load(
-                    key.into(),
+                clipmap.complete_pending_load(
+                    key,
                     // PERF: maybe just decompress directly from the archived bytes here?
                     archived_chunk.map(|c| c.deserialize().unwrap_insert()),
                 )
             }
         } else {
-            load_tasks.push(task);
+            tasks.push_front(task);
+            break;
         }
     }
 
@@ -88,7 +77,7 @@ pub fn loader_system(
             // Insert loading sentinel nodes to mark trees for async loading.
             clipmap.broad_phase_load_search(old_witness_pos, new_witness_pos);
 
-            if load_tasks.num_tasks() >= config.loader.max_pending_load_tasks {
+            if tasks.len() >= config.loader.max_pending_load_tasks {
                 continue;
             }
 
@@ -109,7 +98,7 @@ pub fn loader_system(
                         .collect(),
                 }
             });
-            load_tasks.tasks.push_back(load_task);
+            tasks.push_back(load_task);
         }
     }
 }

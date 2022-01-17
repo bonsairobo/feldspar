@@ -186,7 +186,7 @@ impl ChunkClipMap {
         })
     }
 
-    pub fn fulfill_pending_load(
+    pub fn complete_pending_load(
         &mut self,
         loaded_key: NodeKey<IVec3>,
         data: Option<CompressedChunk>,

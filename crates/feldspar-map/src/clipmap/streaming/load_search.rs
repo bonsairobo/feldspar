@@ -152,7 +152,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
             || center_dist_to_observer / bounding_sphere.radius > detail;
 
         if do_load {
-            // When the node is marked as loaded, we will clear this pending bit.
+            // When the load is completed, we will clear this pending bit.
             node.state().set_load_pending();
             self.num_load_slots += 1;
             return Some((
