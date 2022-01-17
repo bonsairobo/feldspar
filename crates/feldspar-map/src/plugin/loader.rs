@@ -1,7 +1,7 @@
 use super::config::MapConfig;
 use super::Witness;
 use crate::chunk::CompressedChunk;
-use crate::clipmap::{ChunkClipMap, NodeKey};
+use crate::clipmap::{ChunkClipMap, NodeKey, NodePtr};
 use crate::database::{ArchivedChangeIVec, MapDb};
 use crate::units::VoxelUnits;
 
@@ -32,7 +32,13 @@ impl Default for LoaderConfig {
 }
 
 pub struct LoadedBatch {
-    reads: Vec<(NodeKey<IVec3>, Option<ArchivedChangeIVec<CompressedChunk>>)>,
+    reads: Vec<LoadedChunk>,
+}
+
+pub struct LoadedChunk {
+    key: NodeKey<IVec3>,
+    archived_chunk: Option<ArchivedChangeIVec<CompressedChunk>>,
+    nearest_ancestor_ptr: Option<NodePtr>,
 }
 
 pub struct PendingLoadTasks {
@@ -54,9 +60,15 @@ pub fn loader_system(
     while let Some(mut task) = tasks.pop_front() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
             // Insert the chunks into the clipmap and mark the nodes as loaded.
-            for (key, archived_chunk) in loaded_batch.reads.into_iter() {
+            for LoadedChunk {
+                key,
+                archived_chunk,
+                nearest_ancestor_ptr,
+            } in loaded_batch.reads.into_iter()
+            {
                 clipmap.complete_pending_load(
                     key,
+                    nearest_ancestor_ptr,
                     // PERF: maybe just decompress directly from the archived bytes here?
                     archived_chunk.map(|c| c.deserialize().unwrap_insert()),
                 )
@@ -92,8 +104,10 @@ pub fn loader_system(
                 LoadedBatch {
                     reads: batch_keys
                         .into_iter()
-                        .map(move |(key, nearest_ancestor_ptr)| {
-                            (key, db_clone.read_working_version(key.into()).unwrap())
+                        .map(move |(key, nearest_ancestor_ptr)| LoadedChunk {
+                            key,
+                            archived_chunk: db_clone.read_working_version(key.into()).unwrap(),
+                            nearest_ancestor_ptr,
                         })
                         .collect(),
                 }

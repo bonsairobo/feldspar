@@ -189,7 +189,8 @@ impl ChunkClipMap {
     pub fn complete_pending_load(
         &mut self,
         loaded_key: NodeKey<IVec3>,
-        data: Option<CompressedChunk>,
+        nearest_ancestor_ptr: Option<NodePtr>,
+        chunk: Option<CompressedChunk>,
     ) {
         // We need to ensure a couple things:
         // 1. If we insert a `None`, then we need to check if we're the last sibling node finished loading and maybe collapse
