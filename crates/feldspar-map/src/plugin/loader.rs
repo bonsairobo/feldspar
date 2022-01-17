@@ -1,8 +1,8 @@
 use super::config::MapConfig;
 use super::Witness;
 use crate::chunk::CompressedChunk;
-use crate::clipmap::ChunkClipMap;
-use crate::database::{ArchivedChangeIVec, ChunkDbKey, MapDb};
+use crate::clipmap::{ChunkClipMap, NodeKey};
+use crate::database::{ArchivedChangeIVec, MapDb};
 use crate::units::VoxelUnits;
 
 use feldspar_core::glam::Vec3A;
@@ -32,7 +32,7 @@ impl Default for LoaderConfig {
 }
 
 pub struct LoadedBatch {
-    reads: Vec<(ChunkDbKey, Option<ArchivedChangeIVec<CompressedChunk>>)>,
+    reads: Vec<(NodeKey<IVec3>, Option<ArchivedChangeIVec<CompressedChunk>>)>,
 }
 
 pub struct PendingLoadTasks {
@@ -93,14 +93,8 @@ pub fn loader_system(
             }
 
             // Find a batch of nodes to load.
-            let mut batch_keys = Vec::with_capacity(config.loader.load_batch_size);
-            clipmap.near_phase_load_search(
-                config.loader.load_batch_size,
-                new_witness_pos,
-                |level, coords| {
-                    batch_keys.push(ChunkDbKey::new(level, coords.into_inner().into()));
-                },
-            );
+            let search = clipmap.near_phase_load_search(new_witness_pos);
+            let batch_keys: Vec<_> = search.take(config.loader.load_batch_size).collect();
 
             // Spawn a new task to load those nodes.
             let db_clone = db.clone();
@@ -109,7 +103,9 @@ pub fn loader_system(
                 LoadedBatch {
                     reads: batch_keys
                         .into_iter()
-                        .map(move |key| (key, db_clone.read_working_version(key).unwrap()))
+                        .map(move |(key, nearest_ancestor_ptr)| {
+                            (key, db_clone.read_working_version(key.into()).unwrap())
+                        })
                         .collect(),
                 }
             });

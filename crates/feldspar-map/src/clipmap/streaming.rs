@@ -4,7 +4,6 @@ mod render_search;
 pub use load_search::*;
 pub use render_search::*;
 
-use crate::clipmap::Level;
 use crate::units::VoxelUnits;
 
 use serde::{Deserialize, Serialize};
@@ -22,8 +21,6 @@ pub struct StreamingConfig {
     ///   - `D` is the Euclidean distance from observer to the center of the chunk (in LOD0 space)
     ///   - `R` is the radius of the chunk's bounding sphere (in LOD0 space)
     pub detail: VoxelUnits<f32>,
-    /// The minimum [`Level`] where we insert load sentinel nodes.
-    pub min_load_level: Level,
     /// The radius of the clip [`Sphere`](crate::core::geometry::Sphere), i.e. the sphere centered at the observer outside of
     /// which terrain is not loaded.
     pub clip_sphere_radius: VoxelUnits<f32>,
@@ -33,7 +30,6 @@ impl Default for StreamingConfig {
     fn default() -> Self {
         Self {
             detail: VoxelUnits(6.0),
-            min_load_level: 4,
             clip_sphere_radius: VoxelUnits(1000.0),
         }
     }

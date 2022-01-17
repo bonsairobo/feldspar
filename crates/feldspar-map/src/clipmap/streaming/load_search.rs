@@ -2,7 +2,7 @@ use crate::clipmap::ChunkClipMap;
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
-    clipmap::{ChunkNode, Level, NodeState, VisitCommand},
+    clipmap::{ChunkNode, Level, NodeState, StreamingConfig, VisitCommand},
     coordinates::{
         chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent, visit_children,
     },
@@ -10,7 +10,8 @@ use crate::{
 };
 
 use float_ord::FloatOrd;
-use grid_tree::{AllocPtr, NodeKey, NodePtr};
+use grid_tree::{AllocPtr, NodeKey, NodePtr, OctreeI32};
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 pub struct NodeSlot {
@@ -70,17 +71,8 @@ impl ChunkClipMap {
         }
     }
 
-    /// Searches for up to `budget` of the nodes marked as "loading." It is up to the caller to subsequently write or delete the
-    /// data in the loading nodes so that they get marked as "loaded".
-    pub fn near_phase_load_search(
-        &self,
-        budget: usize,
-        observer: VoxelUnits<Vec3A>,
-        mut rx: impl FnMut(Level, ChunkUnits<IVec3>),
-    ) {
+    pub fn near_phase_load_search(&self, observer: VoxelUnits<Vec3A>) -> NearPhaseLoadSearch<'_> {
         let mut candidate_heap = BinaryHeap::new();
-        let mut num_load_slots = 0;
-
         for (root_key, root_node) in self.octree.iter_roots() {
             candidate_heap.push(LoadSearchNode::new(
                 root_key.level,
@@ -90,89 +82,158 @@ impl ChunkClipMap {
                 observer,
             ));
         }
+        NearPhaseLoadSearch {
+            octree: &self.octree,
+            config: self.stream_config,
+            observer,
+            candidate_heap,
+            num_load_slots: 0,
+        }
+    }
+}
 
-        while let Some(LoadSearchNode {
-            level,
-            coordinates,
-            ptr,
-            nearest_ancestor,
-            ..
-        }) = candidate_heap.pop()
-        {
-            if num_load_slots >= budget {
-                break;
-            }
+/// Searches for nodes marked as "loading." It is up to the caller to subsequently complete the load and supply an
+/// `Option<Chunk>`.
+///
+/// WARNING: Due to the internal use of atomics, it is safe but left unspecified what happens when two searches are run at the
+/// same time on the same tree.
+pub struct NearPhaseLoadSearch<'a> {
+    octree: &'a OctreeI32<ChunkNode>,
+    config: StreamingConfig,
+    observer: VoxelUnits<Vec3A>,
+    candidate_heap: BinaryHeap<LoadSearchNode>,
+    num_load_slots: usize,
+}
 
-            if level == 0 {
-                // We hit LOD0 so this chunk needs to be loaded.
-                rx(level, coordinates);
-                num_load_slots += 1;
+impl<'a> NearPhaseLoadSearch<'a> {
+    pub fn is_done(&self) -> bool {
+        self.candidate_heap.is_empty()
+    }
 
-                // Mark the nearest ancestor as pending, assuming we don't have a node for loading level 0.
-                let nearest_ancestor_ptr = nearest_ancestor.unwrap();
-                let nearest_ancestor_node = self.octree.get_value(nearest_ancestor_ptr).unwrap();
-                nearest_ancestor_node.state().set_load_pending();
-
-                continue;
-            }
-            let child_level = level - 1;
-
-            let node_entry = ptr.and_then(|p| {
-                let node_ptr = NodePtr::new(level, p);
+    pub fn check_next_candidate(&mut self) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+        self.candidate_heap.pop().and_then(|search_node| {
+            let ptr_and_node = search_node.ptr.and_then(|p| {
+                let node_ptr = NodePtr::new(search_node.level, p);
                 self.octree.get_value(node_ptr).map(|n| (node_ptr, n))
             });
-            if let Some((ptr, node)) = node_entry {
-                if node.state().is_loading() && node.state().descendant_is_loading.none() {
-                    // All descendants have loaded, so this slot is ready to be downsampled.
-                    rx(level, coordinates);
+            if let Some((ptr, node)) = ptr_and_node {
+                self.search_occupied_candidate(search_node, ptr, node)
+            } else {
+                self.search_vacant_candidate(search_node)
+            }
+        })
+    }
 
-                    // When the node is marked as loaded, we will clear this pending bit.
-                    node.state().set_load_pending();
+    fn search_occupied_candidate(
+        &mut self,
+        search_node: LoadSearchNode,
+        ptr: NodePtr,
+        node: &ChunkNode,
+    ) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+        if node.state().has_load_pending() {
+            // Don't start a redundant load.
+            return None;
+        }
 
-                    // Leaving this commented, we are choosing not to count LOD > 0 against the budget. Downsampling is much
-                    // faster than generating LOD0, and there are many more LOD0 chunks, so it seems fair to just let as much
-                    // downsampling happen as possible.
-                    // num_load_slots += 1;
+        let LoadSearchNode {
+            level,
+            coordinates,
+            nearest_ancestor,
+            center_dist_to_observer: VoxelUnits(center_dist_to_observer),
+            bounding_sphere: VoxelUnits(bounding_sphere),
+            ..
+        } = search_node;
 
-                    continue;
-                }
+        let VoxelUnits(detail) = self.config.detail;
+        // PERF: we at least need to load the parent of an active node for LOD blending, but this condition may also load more
+        // ancestors than necessary; this could be lazier.
+        let do_load = level == 0
+            || (node.state().is_loading() && node.state().descendant_is_loading.none())
+            || center_dist_to_observer / bounding_sphere.radius > detail;
 
-                // If we're on a nonzero level, visit all children that need loading, regardless of which child nodes exist.
-                if let Some(child_pointers) = self.octree.child_pointers(ptr) {
-                    visit_children(coordinates.into_inner(), |child_index, child_coords| {
-                        if !node.state().has_load_pending()
-                            && node.state().descendant_is_loading.bit_is_set(child_index)
-                        {
-                            let child_ptr = child_pointers.get_child(child_index);
-                            candidate_heap.push(LoadSearchNode::new(
-                                child_level,
-                                ChunkUnits(child_coords),
-                                child_ptr.map(|p| p.alloc_ptr()),
-                                Some(ptr),
-                                observer,
-                            ));
-                        }
-                    })
-                }
-            } else if level < self.stream_config.min_load_level {
-                // We only recurse on missing nodes if we're under the load level. This is because when *any* new node is
-                // inserted as a result of calling ChunkClipMap::insert_loading_node, all of its "descendant_is_loading" bits
-                // are set. So during this search, we may get directed to empty nodes outside of the clip sphere by these bits
-                // if we're at or above the load level. But below the load level, we want to search for any descendants of
-                // load-level nodes that exist, i.e. load-level nodes that intersected the clip sphere.
+        if do_load {
+            // When the node is marked as loaded, we will clear this pending bit.
+            node.state().set_load_pending();
+            self.num_load_slots += 1;
+            return Some((
+                NodeKey::new(level, coordinates.into_inner()),
+                nearest_ancestor,
+            ));
+        }
 
-                // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be loaded.
-                visit_children(coordinates.into_inner(), |_child_index, child_coords| {
-                    candidate_heap.push(LoadSearchNode::new(
+        // If we're on a nonzero level, visit all children that need loading, regardless of which child nodes exist.
+        if let Some(child_pointers) = self.octree.child_pointers(ptr) {
+            let child_level = level - 1;
+            visit_children(coordinates.into_inner(), |child_index, child_coords| {
+                if node.state().descendant_is_loading.bit_is_set(child_index) {
+                    let child_ptr = child_pointers.get_child(child_index);
+                    self.candidate_heap.push(LoadSearchNode::new(
                         child_level,
                         ChunkUnits(child_coords),
-                        None,
-                        nearest_ancestor,
-                        observer,
+                        child_ptr.map(|p| p.alloc_ptr()),
+                        Some(ptr),
+                        self.observer,
                     ));
-                })
-            }
+                }
+            })
         }
+
+        None
+    }
+
+    fn search_vacant_candidate(
+        &mut self,
+        search_node: LoadSearchNode,
+    ) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+        let LoadSearchNode {
+            level,
+            coordinates,
+            nearest_ancestor,
+            center_dist_to_observer: VoxelUnits(center_dist_to_observer),
+            bounding_sphere: VoxelUnits(bounding_sphere),
+            ..
+        } = search_node;
+
+        let VoxelUnits(detail) = self.config.detail;
+        let do_load = level == 0 || center_dist_to_observer / bounding_sphere.radius > detail;
+
+        if do_load {
+            // Mark the nearest ancestor as pending. All vacant candidates must have an existing ancestor node, as guaranteed by
+            // the broad phase load search.
+            let ancestor_ptr = nearest_ancestor.unwrap();
+            let nearest_ancestor_node = self.octree.get_value(ancestor_ptr).unwrap();
+            nearest_ancestor_node.state().set_load_pending();
+            self.num_load_slots += 1;
+            return Some((
+                NodeKey::new(level, coordinates.into_inner()),
+                nearest_ancestor,
+            ));
+        }
+
+        // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be loaded.
+        let child_level = level - 1;
+        visit_children(coordinates.into_inner(), |_child_index, child_coords| {
+            self.candidate_heap.push(LoadSearchNode::new(
+                child_level,
+                ChunkUnits(child_coords),
+                None,
+                nearest_ancestor,
+                self.observer,
+            ));
+        });
+        None
+    }
+}
+
+impl<'a> Iterator for NearPhaseLoadSearch<'a> {
+    type Item = (NodeKey<IVec3>, Option<NodePtr>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut next_find = None;
+        while !self.is_done() {
+            next_find = self.check_next_candidate();
+        }
+        next_find
     }
 }
 
@@ -180,7 +241,9 @@ impl ChunkClipMap {
 struct LoadSearchNode {
     level: Level,
     coordinates: ChunkUnits<IVec3>,
+    center_dist_to_observer: VoxelUnits<f32>,
     closest_dist_to_observer: VoxelUnits<f32>,
+    bounding_sphere: VoxelUnits<Sphere>,
     // Optional because we might search into vacant space.
     ptr: Option<AllocPtr>,
     nearest_ancestor: Option<NodePtr>,
@@ -207,7 +270,9 @@ impl LoadSearchNode {
             coordinates,
             ptr,
             nearest_ancestor,
+            center_dist_to_observer: VoxelUnits(center_dist_to_observer),
             closest_dist_to_observer: VoxelUnits(closest_dist_to_observer),
+            bounding_sphere: VoxelUnits(bounding_sphere),
         }
     }
 }
@@ -220,19 +285,19 @@ impl PartialEq for LoadSearchNode {
 impl Eq for LoadSearchNode {}
 
 impl PartialOrd for LoadSearchNode {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         VoxelUnits::map2(
             self.closest_dist_to_observer,
             other.closest_dist_to_observer,
             |d1, d2| FloatOrd(d1).partial_cmp(&FloatOrd(d2)),
         )
         .into_inner()
-        .map(|o| o.reverse())
+        .map(Ordering::reverse)
     }
 }
 
 impl Ord for LoadSearchNode {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         VoxelUnits::map2(
             self.closest_dist_to_observer,
             other.closest_dist_to_observer,
