@@ -140,7 +140,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
             coordinates,
             nearest_ancestor,
             center_dist_to_observer: VoxelUnits(center_dist_to_observer),
-            bounding_sphere: VoxelUnits(bounding_sphere),
+            bounding_radius: VoxelUnits(bounding_radius),
             ..
         } = search_node;
 
@@ -149,7 +149,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
         // ancestors than necessary; this could be lazier.
         let do_load = level == 0
             || (node.state().is_loading() && node.state().descendant_is_loading.none())
-            || center_dist_to_observer / bounding_sphere.radius > detail;
+            || center_dist_to_observer / bounding_radius > detail;
 
         if do_load {
             // When the load is completed, we will clear this pending bit.
@@ -190,12 +190,12 @@ impl<'a> NearPhaseLoadSearch<'a> {
             coordinates,
             nearest_ancestor,
             center_dist_to_observer: VoxelUnits(center_dist_to_observer),
-            bounding_sphere: VoxelUnits(bounding_sphere),
+            bounding_radius: VoxelUnits(bounding_radius),
             ..
         } = search_node;
 
         let VoxelUnits(detail) = self.config.detail;
-        let do_load = level == 0 || center_dist_to_observer / bounding_sphere.radius > detail;
+        let do_load = level == 0 || center_dist_to_observer / bounding_radius > detail;
 
         if do_load {
             // Mark the nearest ancestor as pending. All vacant candidates must have an existing ancestor node, as guaranteed by
@@ -243,7 +243,7 @@ struct LoadSearchNode {
     coordinates: ChunkUnits<IVec3>,
     center_dist_to_observer: VoxelUnits<f32>,
     closest_dist_to_observer: VoxelUnits<f32>,
-    bounding_sphere: VoxelUnits<Sphere>,
+    bounding_radius: VoxelUnits<f32>,
     // Optional because we might search into vacant space.
     ptr: Option<AllocPtr>,
     nearest_ancestor: Option<NodePtr>,
@@ -272,7 +272,7 @@ impl LoadSearchNode {
             nearest_ancestor,
             center_dist_to_observer: VoxelUnits(center_dist_to_observer),
             closest_dist_to_observer: VoxelUnits(closest_dist_to_observer),
-            bounding_sphere: VoxelUnits(bounding_sphere),
+            bounding_radius: VoxelUnits(bounding_sphere.radius),
         }
     }
 }
