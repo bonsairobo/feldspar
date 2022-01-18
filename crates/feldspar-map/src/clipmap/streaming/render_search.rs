@@ -3,7 +3,7 @@ use crate::clipmap::{ChunkClipMap, NodeState};
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
-    clipmap::{ChildIndex, Level, NodeLocation, StateBit, VisitCommand},
+    clipmap::{ChildIndex, Level, NodeLocation, VisitCommand},
     coordinates::{chunk_bounding_sphere, CUBE_CORNERS},
     units::*,
 };
@@ -155,7 +155,7 @@ impl ChunkClipMap {
                     }
 
                     // At this point we've committed to meshing this node.
-                    min_node_state.state.set_bit(StateBit::Render as u8);
+                    min_node_state.set_rendering();
                     num_render_chunks += 1;
 
                     if level == 0 {
@@ -251,11 +251,11 @@ impl ChunkClipMap {
 
         // At this point, we've committed to meshing the children.
         let mut num_render_chunks = 0;
-        min_node_state.state.unset_bit(StateBit::Render as u8);
+        min_node_state.unset_rendering();
         self.octree
             .visit_children(min_neighbor_ptr, |child_ptr, _| {
                 let child_node = self.octree.get_value(child_ptr).unwrap();
-                child_node.state().state.set_bit(StateBit::Render as u8);
+                child_node.state().set_rendering();
                 num_render_chunks += 1;
             });
         rx(LodChange::Split(Box::new(SplitChunk {
@@ -280,10 +280,8 @@ impl ChunkClipMap {
                 self.octree
                     .visit_tree_depth_first(child_ptr, coords, 0, |node_ptr, node_coords| {
                         let descendant_node = self.octree.get_value(node_ptr).unwrap();
-                        let descendant_was_active = descendant_node
-                            .state()
-                            .state
-                            .fetch_and_unset_bit(StateBit::Render as u8);
+                        let descendant_was_active =
+                            descendant_node.state().fetch_and_unset_rendering();
                         if descendant_was_active {
                             deactivate_nodes
                                 .push(NodeLocation::new(ChunkUnits(node_coords), node_ptr));

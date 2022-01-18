@@ -165,7 +165,7 @@ impl ChunkNode {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u8)]
-pub enum StateBit {
+enum StateBit {
     /// This bit is set if there is chunk data in the slot.
     Occupied = 0,
     /// This bit is set if the node is compressed or in the process of being decompressed.
@@ -260,6 +260,21 @@ impl NodeState {
     #[inline]
     pub fn has_load_pending(&self) -> bool {
         self.state.bit_is_set(StateBit::LoadPending as u8)
+    }
+
+    #[inline]
+    pub fn set_rendering(&self) {
+        self.state.set_bit(StateBit::Render as u8)
+    }
+
+    #[inline]
+    pub fn unset_rendering(&self) {
+        self.state.unset_bit(StateBit::Render as u8)
+    }
+
+    #[inline]
+    pub fn fetch_and_unset_rendering(&self) -> bool {
+        self.state.fetch_and_unset_bit(StateBit::Render as u8)
     }
 
     #[inline]
