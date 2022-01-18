@@ -166,6 +166,11 @@ impl ChunkClipMap {
         }
     }
 
+    /// # Load vs Edit Conflict Resolution
+    ///
+    /// Asynchronous loads and edits can cause a scenario where an edit overlaps a region with a pending load. Because the edit
+    /// is necessarily newer information, it will clear the "load pending" bit and take precedence. When the load is completed,
+    /// it will check if the load is still pending; if not, the loaded data gets ignored and dropped.
     pub fn complete_pending_load(
         &mut self,
         loaded_key: NodeKey<IVec3>,
