@@ -310,10 +310,7 @@ impl Default for ChunkSlot {
     }
 }
 
-const_assert_eq!(
-    mem::size_of::<ChunkSlot>(),
-    2 * mem::size_of::<*const i32>()
-);
+const_assert_eq!(mem::size_of::<ChunkSlot>(), 2 * mem::size_of::<*const ()>());
 
 // ████████╗███████╗███████╗████████╗
 // ╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝
