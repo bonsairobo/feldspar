@@ -166,26 +166,6 @@ impl ChunkClipMap {
         }
     }
 
-    pub fn insert_loading_node(&mut self, target_key: NodeKey<IVec3>) {
-        let mut level_diff = self.octree.root_level() - target_key.level;
-        self.octree.fill_path_to_node(target_key, |key, entry| {
-            let (_node_ptr, node) =
-                entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_load_sentinel()));
-            if level_diff == 0 {
-                node.state_mut().descendant_is_loading.set_all();
-                VisitCommand::SkipDescendants
-            } else {
-                level_diff -= 1;
-                let child_coords =
-                    OctreeShapeI32::ancestor_key(target_key.coordinates, level_diff as u32);
-                let min_sibling = OctreeShapeI32::min_child_key(key.coordinates);
-                let child_index = OctreeShapeI32::linearize_child(child_coords - min_sibling);
-                node.state_mut().descendant_is_loading.set_bit(child_index);
-                VisitCommand::Continue
-            }
-        })
-    }
-
     pub fn complete_pending_load(
         &mut self,
         loaded_key: NodeKey<IVec3>,
