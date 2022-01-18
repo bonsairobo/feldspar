@@ -230,7 +230,7 @@ impl<'a> Iterator for NearPhaseLoadSearch<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut next_find = None;
-        while !self.is_done() {
+        while next_find.is_none() && !self.is_done() {
             next_find = self.check_next_candidate();
         }
         next_find
