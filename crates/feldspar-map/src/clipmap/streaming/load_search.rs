@@ -2,7 +2,9 @@ use crate::clipmap::ChunkClipMap;
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
-    clipmap::{ChunkNode, Level, NodeState, StreamingConfig, VisitCommand},
+    clipmap::{
+        ChunkNode, Level, LinkPointer, NodeState, PendingLoad, StreamingConfig, VisitCommand,
+    },
     coordinates::{
         chunk_bounding_sphere, sphere_intersecting_ancestor_chunk_extent, visit_children,
     },
@@ -28,8 +30,7 @@ impl NodeSlot {
 }
 
 impl ChunkClipMap {
-    /// Searches for root nodes that entered the clip sphere this frame and inserts them as "load sentinel" nodes to be used by
-    /// the near-phase search.
+    /// Inserts root nodes that entered the clip sphere this frame.
     pub fn broad_phase_load_search(
         &mut self,
         old_observer: VoxelUnits<Vec3A>,
@@ -64,7 +65,7 @@ impl ChunkClipMap {
             if !node_intersects_old_clip_sphere {
                 let root_key = NodeKey::new(root_level, root_coords);
                 self.octree.fill_root(root_key, |entry| {
-                    entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_load_sentinel()));
+                    entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_loading()));
                     VisitCommand::SkipDescendants
                 });
             }
@@ -110,7 +111,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
         self.candidate_heap.is_empty()
     }
 
-    pub fn check_next_candidate(&mut self) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+    pub fn check_next_candidate(&mut self) -> Option<PendingLoad> {
         self.candidate_heap.pop().and_then(|search_node| {
             let ptr_and_node = search_node.ptr.and_then(|p| {
                 let node_ptr = NodePtr::new(search_node.level, p);
@@ -129,7 +130,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
         search_node: LoadSearchNode,
         ptr: NodePtr,
         node: &ChunkNode,
-    ) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+    ) -> Option<PendingLoad> {
         if node.state().has_load_pending() {
             // Don't start a redundant load.
             return None;
@@ -138,9 +139,9 @@ impl<'a> NearPhaseLoadSearch<'a> {
         let LoadSearchNode {
             level,
             coordinates,
-            nearest_ancestor,
             center_dist_to_observer: VoxelUnits(center_dist_to_observer),
             bounding_radius: VoxelUnits(bounding_radius),
+            nearest_ancestor,
             ..
         } = search_node;
 
@@ -155,10 +156,14 @@ impl<'a> NearPhaseLoadSearch<'a> {
             // When the load is completed, we will clear this pending bit.
             node.state().set_load_pending();
             self.num_load_slots += 1;
-            return Some((
-                NodeKey::new(level, coordinates.into_inner()),
-                nearest_ancestor,
-            ));
+            return Some(PendingLoad {
+                chunk: None,
+                loaded_key: NodeKey::new(level, coordinates.into_inner()),
+                link_ptr: LinkPointer::OverwriteNode {
+                    child: ptr,
+                    parent: nearest_ancestor,
+                },
+            });
         }
 
         // If we're on a nonzero level, visit all children that need loading, regardless of which child nodes exist.
@@ -181,10 +186,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
         None
     }
 
-    fn search_vacant_candidate(
-        &mut self,
-        search_node: LoadSearchNode,
-    ) -> Option<(NodeKey<IVec3>, Option<NodePtr>)> {
+    fn search_vacant_candidate(&mut self, search_node: LoadSearchNode) -> Option<PendingLoad> {
         let LoadSearchNode {
             level,
             coordinates,
@@ -204,10 +206,11 @@ impl<'a> NearPhaseLoadSearch<'a> {
             let nearest_ancestor_node = self.octree.get_value(ancestor_ptr).unwrap();
             nearest_ancestor_node.state().set_load_pending();
             self.num_load_slots += 1;
-            return Some((
-                NodeKey::new(level, coordinates.into_inner()),
-                nearest_ancestor,
-            ));
+            return Some(PendingLoad {
+                chunk: None,
+                loaded_key: NodeKey::new(level, coordinates.into_inner()),
+                link_ptr: LinkPointer::LinkToNearestAncestor(nearest_ancestor.unwrap()),
+            });
         }
 
         // We need to enumerate all child corners because this node doesn't exist, but we know it needs to be loaded.
@@ -226,7 +229,7 @@ impl<'a> NearPhaseLoadSearch<'a> {
 }
 
 impl<'a> Iterator for NearPhaseLoadSearch<'a> {
-    type Item = (NodeKey<IVec3>, Option<NodePtr>);
+    type Item = PendingLoad;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut next_find = None;

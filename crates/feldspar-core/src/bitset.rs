@@ -37,7 +37,7 @@ impl Bitset8 {
     }
 
     #[inline]
-    pub fn unset_bit(&mut self, bit: u8) {
+    pub fn clear_bit(&mut self, bit: u8) {
         self.bits &= !(1 << bit);
     }
 }
@@ -78,12 +78,12 @@ impl AtomicBitset8 {
     }
 
     #[inline]
-    pub fn unset_bit(&self, bit: u8) {
+    pub fn clear_bit(&self, bit: u8) {
         self.bits.fetch_and(!(1 << bit), Ordering::SeqCst);
     }
 
     #[inline]
-    pub fn fetch_and_unset_bit(&self, bit: u8) -> bool {
+    pub fn fetch_and_clear_bit(&self, bit: u8) -> bool {
         let mask = 1 << bit;
         self.bits.fetch_and(!mask, Ordering::SeqCst) & mask != 0
     }

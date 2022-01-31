@@ -3,7 +3,7 @@ use crate::clipmap::{ChunkClipMap, NodeState};
 use crate::core::geometry::Sphere;
 use crate::core::glam::{IVec3, Vec3A};
 use crate::{
-    clipmap::{ChildIndex, ChunkNode, Level, NodeLocation, VisitCommand, StreamingConfig},
+    clipmap::{ChildIndex, ChunkNode, Level, NodeLocation, StreamingConfig, VisitCommand},
     coordinates::{chunk_bounding_sphere, CUBE_CORNERS},
     units::*,
 };
@@ -70,11 +70,7 @@ impl ChunkClipMap {
     ///
     /// This only includes nodes whose entire "chunk neighborhood" is loaded, since we need to reference voxel neighborhoods to
     /// generate correct meshes.
-    pub fn render_search(
-        &self,
-        observer: VoxelUnits<Vec3A>,
-        budget: usize,
-    ) -> RenderSearch<'_> {
+    pub fn render_search(&self, observer: VoxelUnits<Vec3A>, budget: usize) -> RenderSearch<'_> {
         RenderSearch::new(self.stream_config, &self.octree, observer, budget)
     }
 }
@@ -101,7 +97,12 @@ impl<'a> Iterator for RenderSearch<'a> {
 }
 
 impl<'a> RenderSearch<'a> {
-    fn new(config: StreamingConfig, octree: &'a OctreeI32<ChunkNode>, observer: VoxelUnits<Vec3A>, budget: usize) -> Self {
+    fn new(
+        config: StreamingConfig,
+        octree: &'a OctreeI32<ChunkNode>,
+        observer: VoxelUnits<Vec3A>,
+        budget: usize,
+    ) -> Self {
         let VoxelUnits(observer) = observer;
         let VoxelUnits(clip_radius) = config.clip_sphere_radius;
         let clip_sphere = VoxelUnits(Sphere::new(observer, clip_radius));
@@ -120,25 +121,14 @@ impl<'a> RenderSearch<'a> {
     fn add_root_neighborhoods_to_heap(&mut self) {
         let VoxelUnits(clip_sphere) = &self.clip_sphere;
 
-        let node_intersects_clip_sphere = |key: NodeKey<IVec3>| {
-            let VoxelUnits(chunk_bounding_sphere) =
-                chunk_bounding_sphere(key.level, ChunkUnits(key.coordinates));
-            clip_sphere.intersects(&chunk_bounding_sphere)
-        };
-
         // Put root neighborhoods in the candidate heap.
         for root_key in self.octree.iter_root_keys() {
             let mut neighborhood = [Neighbor::Empty { loaded: false }; 8];
             for (&offset, target_neighbor) in CUBE_CORNERS.iter().zip(neighborhood.iter_mut()) {
                 let neighbor_key = NodeKey::new(root_key.level, root_key.coordinates + offset);
-
-                *target_neighbor = if let Some(root_node) = self.octree.find_root(neighbor_key) {
-                    Neighbor::Occupied(root_node.self_ptr)
-                } else {
-                    Neighbor::Empty {
-                        loaded: node_intersects_clip_sphere(neighbor_key),
-                    }
-                };
+                if let Some(root_node) = self.octree.find_root(neighbor_key) {
+                    *target_neighbor = Neighbor::Occupied(root_node.self_ptr)
+                }
             }
             self.candidate_heap.push(RenderSearchNode::new(
                 root_key.level,
@@ -200,12 +190,7 @@ impl<'a> RenderSearch<'a> {
                 }
                 // This node just became inactive, and none of its ancestors were active, so it must have active descendants.
                 (true, false) => {
-                    self.split_neighborhood(
-                        coordinates,
-                        &nhood,
-                        min_neighbor_ptr,
-                        min_node_state,
-                    )
+                    self.split_neighborhood(coordinates, &nhood, min_neighbor_ptr, min_node_state)
                 }
                 // Node just became active, and none of its ancestors were active.
                 (false, true) => {
@@ -271,7 +256,7 @@ impl<'a> RenderSearch<'a> {
         }
 
         // At this point, we've committed to meshing the children.
-        min_node_state.unset_rendering();
+        min_node_state.clear_rendering();
         self.octree
             .visit_children(min_neighbor_ptr, |child_ptr, _| {
                 let child_node = self.octree.get_value(child_ptr).unwrap();
@@ -298,7 +283,7 @@ impl<'a> RenderSearch<'a> {
                     .visit_tree_depth_first(child_ptr, coords, 0, |node_ptr, node_coords| {
                         let descendant_node = self.octree.get_value(node_ptr).unwrap();
                         let descendant_was_active =
-                            descendant_node.state().fetch_and_unset_rendering();
+                            descendant_node.state().fetch_and_clear_rendering();
                         if descendant_was_active {
                             deactivate_nodes
                                 .push(NodeLocation::new(ChunkUnits(node_coords), node_ptr));

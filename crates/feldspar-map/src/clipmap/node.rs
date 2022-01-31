@@ -39,7 +39,7 @@ impl ChunkNode {
     }
 
     pub fn new_empty(state: NodeState) -> Self {
-        state.state.unset_bit(StateBit::Occupied as u8);
+        state.state.clear_bit(StateBit::Occupied as u8);
         Self {
             state,
             chunk: RwLock::new(ChunkSlot { empty: () }),
@@ -59,7 +59,7 @@ impl ChunkNode {
 
     pub fn new_decompressed(chunk: Box<Chunk>, state: NodeState) -> Self {
         state.state.set_bit(StateBit::Occupied as u8);
-        state.state.unset_bit(StateBit::Compressed as u8);
+        state.state.clear_bit(StateBit::Compressed as u8);
         Self {
             state,
             chunk: RwLock::new(ChunkSlot {
@@ -97,7 +97,7 @@ impl ChunkNode {
                 write_guard.decompressed = ManuallyDrop::new(decompressed);
 
                 // Readers don't need to wait anymore.
-                self.state.state.unset_bit(StateBit::Compressed as u8);
+                self.state.state.clear_bit(StateBit::Compressed as u8);
 
                 Some(DecompressedChunk {
                     read_guard: RwLockWriteGuard::downgrade(write_guard),
@@ -135,14 +135,14 @@ impl ChunkNode {
             decompressed: ManuallyDrop::new(decompressed),
         });
         self.state.state.set_bit(StateBit::Occupied as u8);
-        self.state.state.unset_bit(StateBit::Compressed as u8);
+        self.state.state.clear_bit(StateBit::Compressed as u8);
         old_value
     }
 
     /// Take the existing chunk value, leaving the slot empty.
     pub fn take_chunk(&mut self) -> Option<Either<Box<Chunk>, CompressedChunk>> {
         let old_value = self.replace_slot(ChunkSlot { empty: () });
-        self.state.state.unset_bit(StateBit::Occupied as u8);
+        self.state.state.clear_bit(StateBit::Occupied as u8);
         old_value
     }
 
@@ -189,26 +189,22 @@ const OCCUPIED_MASK: u8 = StateBit::Occupied.mask();
 const COMPRESSED_MASK: u8 = StateBit::Compressed.mask();
 
 pub struct NodeState {
-    pub(crate) descendant_is_loading: Bitset8,
     pub(crate) state: AtomicBitset8,
+    pub(crate) descendant_is_loading: Bitset8,
 }
 
 impl NodeState {
     #[inline]
     pub fn new_zeroed() -> Self {
         Self {
-            descendant_is_loading: Bitset8::default(),
             state: AtomicBitset8::default(),
+            descendant_is_loading: Bitset8::default(),
         }
     }
 
     #[inline]
-    pub fn new_load_sentinel() -> Self {
-        let mut new = Self {
-            descendant_is_loading: Bitset8::default(),
-            state: AtomicBitset8::default(),
-        };
-        new.descendant_is_loading.set_all();
+    pub fn new_loading() -> Self {
+        let new = Self::new_zeroed();
         new.set_loading();
         new
     }
@@ -233,18 +229,18 @@ impl NodeState {
     }
 
     #[inline]
-    pub fn tree_is_loading(&self) -> bool {
-        self.is_loading() || self.descendant_is_loading.any()
-    }
-
-    #[inline]
     pub fn set_loading(&self) {
         self.state.set_bit(StateBit::Loading as u8)
     }
 
     #[inline]
     pub fn clear_loading(&self) {
-        self.state.unset_bit(StateBit::Loading as u8)
+        self.state.clear_bit(StateBit::Loading as u8)
+    }
+
+    #[inline]
+    pub fn fetch_and_clear_loading(&self) -> bool {
+        self.state.fetch_and_clear_bit(StateBit::Loading as u8)
     }
 
     #[inline]
@@ -254,7 +250,7 @@ impl NodeState {
 
     #[inline]
     pub fn clear_load_pending(&self) {
-        self.state.unset_bit(StateBit::LoadPending as u8)
+        self.state.clear_bit(StateBit::LoadPending as u8)
     }
 
     #[inline]
@@ -263,18 +259,23 @@ impl NodeState {
     }
 
     #[inline]
+    pub fn fetch_and_clear_load_pending(&self) -> bool {
+        self.state.fetch_and_clear_bit(StateBit::LoadPending as u8)
+    }
+
+    #[inline]
     pub fn set_rendering(&self) {
         self.state.set_bit(StateBit::Render as u8)
     }
 
     #[inline]
-    pub fn unset_rendering(&self) {
-        self.state.unset_bit(StateBit::Render as u8)
+    pub fn clear_rendering(&self) {
+        self.state.clear_bit(StateBit::Render as u8)
     }
 
     #[inline]
-    pub fn fetch_and_unset_rendering(&self) -> bool {
-        self.state.fetch_and_unset_bit(StateBit::Render as u8)
+    pub fn fetch_and_clear_rendering(&self) -> bool {
+        self.state.fetch_and_clear_bit(StateBit::Render as u8)
     }
 
     #[inline]

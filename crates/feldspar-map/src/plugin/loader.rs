@@ -1,8 +1,7 @@
 use super::config::MapConfig;
 use super::Witness;
-use crate::chunk::CompressedChunk;
-use crate::clipmap::{ChunkClipMap, NodeKey, NodePtr};
-use crate::database::{ArchivedChangeIVec, MapDb};
+use crate::clipmap::{ChunkClipMap, PendingLoad};
+use crate::database::MapDb;
 use crate::units::VoxelUnits;
 
 use feldspar_core::glam::Vec3A;
@@ -32,13 +31,7 @@ impl Default for LoaderConfig {
 }
 
 pub struct LoadedBatch {
-    reads: Vec<LoadedChunk>,
-}
-
-pub struct LoadedChunk {
-    key: NodeKey<IVec3>,
-    archived_chunk: Option<ArchivedChangeIVec<CompressedChunk>>,
-    nearest_ancestor_ptr: Option<NodePtr>,
+    reads: Vec<PendingLoad>,
 }
 
 pub struct PendingLoadTasks {
@@ -60,18 +53,8 @@ pub fn loader_system(
     while let Some(mut task) = tasks.pop_front() {
         if let Some(loaded_batch) = future::block_on(future::poll_once(&mut task)) {
             // Insert the chunks into the clipmap and mark the nodes as loaded.
-            for LoadedChunk {
-                key,
-                archived_chunk,
-                nearest_ancestor_ptr,
-            } in loaded_batch.reads.into_iter()
-            {
-                clipmap.complete_pending_load(
-                    key,
-                    nearest_ancestor_ptr,
-                    // PERF: maybe just decompress directly from the archived bytes here?
-                    archived_chunk.map(|c| c.deserialize().unwrap_insert()),
-                )
+            for pending_load in loaded_batch.reads.into_iter() {
+                clipmap.complete_pending_load(pending_load)
             }
         } else {
             tasks.push_front(task);
@@ -86,7 +69,7 @@ pub fn loader_system(
             let old_witness_pos = VoxelUnits(Vec3A::from(prev_tfm.translation.to_array()));
             let new_witness_pos = VoxelUnits(Vec3A::from(tfm.translation.to_array()));
 
-            // Insert loading sentinel nodes to mark trees for async loading.
+            // Insert new root nodes that intersect the clip sphere.
             clipmap.broad_phase_load_search(old_witness_pos, new_witness_pos);
 
             if tasks.len() >= config.loader.max_pending_load_tasks {
@@ -95,19 +78,21 @@ pub fn loader_system(
 
             // Find a batch of nodes to load.
             let search = clipmap.near_phase_load_search(new_witness_pos);
-            let batch_keys: Vec<_> = search.take(config.loader.load_batch_size).collect();
+            let pending_loads: Vec<_> = search.take(config.loader.load_batch_size).collect();
 
             // Spawn a new task to load those nodes.
             let db_clone = db.clone();
             let load_task = io_pool.spawn(async move {
                 // PERF: Should this batch be a single task?
                 LoadedBatch {
-                    reads: batch_keys
+                    reads: pending_loads
                         .into_iter()
-                        .map(move |(key, nearest_ancestor_ptr)| LoadedChunk {
-                            key,
-                            archived_chunk: db_clone.read_working_version(key.into()).unwrap(),
-                            nearest_ancestor_ptr,
+                        .map(move |mut pending_load| {
+                            pending_load.chunk = db_clone
+                                .read_working_version(pending_load.loaded_key.into())
+                                .unwrap()
+                                .map(|c| c.deserialize().unwrap_insert());
+                            pending_load
                         })
                         .collect(),
                 }

@@ -11,7 +11,7 @@ bytemuck = "1.7"
 either = "1.6"
 float-ord = "0.3"
 grid-ray = { git = "https://github.com/bonsairobo/grid-ray-rs", rev = "0fd6c561" }
-grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", rev = "4d30861b" }
+grid-tree = { git = "https://github.com/bonsairobo/grid-tree-rs", rev = "d273f720" }
 itertools = "0.10"
 log = "0.4"
 lz4_flex = "0.9"

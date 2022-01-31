@@ -5,8 +5,8 @@ mod streaming;
 
 use crate::chunk::CompressedChunk;
 use crate::coordinates::{
-    ancestor_extent, chunk_bounding_sphere, chunk_extent_at_level_ivec3, descendant_extent,
-    in_chunk_extent, sphere_intersecting_ancestor_chunk_extent,
+    ancestor_extent, child_index, chunk_bounding_sphere, chunk_extent_at_level_ivec3,
+    descendant_extent, in_chunk_extent, sphere_intersecting_ancestor_chunk_extent,
 };
 use crate::core::geometry::Sphere;
 use crate::core::glam::IVec3;
@@ -166,17 +166,20 @@ impl ChunkClipMap {
         }
     }
 
+    /// Tries to collapse nodes with the same homogeneous value, starting from `key` and working up the line of ancestors.
+    pub fn try_collapse_key(&mut self, key: NodeKey<IVec3>) {
+        // NOTE: We can't collapse nodes with a load pending!
+        todo!()
+    }
+
     /// # Load vs Edit Conflict Resolution
     ///
     /// Asynchronous loads and edits can cause a scenario where an edit overlaps a region with a pending load. Because the edit
     /// is necessarily newer information, it will clear the "load pending" bit and take precedence. When the load is completed,
     /// it will check if the load is still pending; if not, the loaded data gets ignored and dropped.
-    pub fn complete_pending_load(
-        &mut self,
-        loaded_key: NodeKey<IVec3>,
-        nearest_ancestor_ptr: Option<NodePtr>,
-        chunk: Option<CompressedChunk>,
-    ) {
+    ///
+    /// Similarly, if the `nearest_ancestor` is empty, the load is canceled.
+    pub fn complete_pending_load(&mut self, load: PendingLoad) {
         // We need to ensure a couple things:
         // 1. If we insert a `None`, then we need to check if we're the last sibling node finished loading and maybe collapse
         //    into the parent node if all children are empty. This continues recursively to the root, but we will leave empty
@@ -186,8 +189,106 @@ impl ChunkClipMap {
         //
         // Structurally, this algorithm finds the path to `loaded_key` and then retraces that path backwards in order to fix up
         // ancestors.
-        let mut path = SmallVec::<[NodePtr; 32]>::new();
+
+        let PendingLoad {
+            loaded_key,
+            link_ptr,
+            chunk,
+        } = load;
+
+        let mut do_collapse = false;
+        match link_ptr {
+            LinkPointer::OverwriteNode { child, parent } => {
+                // The node existed when it started loading. It's guaranteed to exist when the load completes because other
+                // users are not allowed to remove the node when it has a load pending.
+                let node = self.octree.get_value_mut(child).unwrap();
+
+                // We rely on &mut borrow to guarantee that no one else clears this bit.
+                assert!(node.state_mut().fetch_and_clear_load_pending());
+
+                let was_loading = node.state_mut().fetch_and_clear_loading();
+                if !was_loading {
+                    // This means there was an intervening edit. Cancel the load.
+                    return;
+                }
+
+                if let Some(chunk) = chunk {
+                    node.put_compressed(chunk);
+                } else {
+                    node.take_chunk();
+                }
+
+                // If this is the last load of this subtree, then clear the descendant is loading bit on the parent.
+                if node.state().descendant_is_loading.none() {
+                    if let Some(parent_ptr) = parent {
+                        let parent_node = self.octree.get_value_mut(parent_ptr).unwrap();
+                        let descendant_index = child_index(loaded_key.coordinates);
+                        parent_node
+                            .state_mut()
+                            .descendant_is_loading
+                            .clear_bit(descendant_index);
+                        if parent_node.state().descendant_is_loading.none() {
+                            do_collapse = true;
+                        }
+                    }
+                }
+            }
+            LinkPointer::LinkToNearestAncestor(nearest_ancestor_ptr) => {
+                let ancestor_node =
+                    if let Some(ancestor_node) = self.octree.get_value(nearest_ancestor_ptr) {
+                        if ancestor_node.state().fetch_and_clear_load_pending() {
+                            ancestor_node
+                        } else {
+                            // Cancel load.
+                            return;
+                        }
+                    } else {
+                        // Cancel load.
+                        return;
+                    };
+
+                // We need to link a new node to the ancestor.
+                assert!(nearest_ancestor_ptr.level() > loaded_key.level);
+                let level_diff = nearest_ancestor_ptr.level() - loaded_key.level;
+
+                let nearest_ancestor_coords = loaded_key.coordinates << level_diff;
+                let mut path = SmallVec::<[NodePtr; 32]>::new();
+                self.octree.fill_path_to_node(
+                    nearest_ancestor_coords,
+                    nearest_ancestor_ptr,
+                    loaded_key,
+                    |key, entry| {
+                        let (ptr, node) =
+                            entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_loading()));
+                        path.push(NodePtr::new(key.level, ptr));
+                        VisitCommand::Continue
+                    },
+                );
+
+                // Check if this was the last sibling loaded, maybe collapse.
+                todo!()
+            }
+        }
+
+        if do_collapse {
+            // PERF: most expensive path. We need to start from the root for collapsing an arbitrary number of levels.
+            self.try_collapse_key(loaded_key);
+        }
     }
+}
+
+pub struct PendingLoad {
+    pub loaded_key: NodeKey<IVec3>,
+    pub link_ptr: LinkPointer,
+    pub chunk: Option<CompressedChunk>,
+}
+
+pub enum LinkPointer {
+    LinkToNearestAncestor(NodePtr),
+    OverwriteNode {
+        child: NodePtr,
+        parent: Option<NodePtr>,
+    },
 }
 
 // ████████╗███████╗███████╗████████╗
@@ -256,7 +357,7 @@ mod test {
         // Insert just a single chunk at level 0.
         let write_key = NodeKey::new(0, IVec3::new(1, 1, 1));
         tree.octree
-            .fill_path_to_node(write_key, |_node_key, entry| {
+            .fill_path_to_node_from_root(write_key, |_node_key, entry| {
                 entry.or_insert_with(|| ChunkNode::new_empty(NodeState::new_zeroed()));
                 VisitCommand::Continue
             });
