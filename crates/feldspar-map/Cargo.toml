@@ -29,10 +29,10 @@ futures-lite = { version = "1.12", optional = true }
 
 # Optional; enable to get the Bevy plugin.
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-rev = "fc0f15f1"
+version = "0.8.0"
 default-features = false
 optional = true
+features = ["dynamic"]
 
 [dev-dependencies]
 crossbeam = "0.8"

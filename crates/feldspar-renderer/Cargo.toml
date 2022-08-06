@@ -11,7 +11,6 @@ feldspar-map = { path = "../feldspar-map/", version = "0.1", features = ["bevy"]
 fast-surface-nets = "0.1"
 
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-rev = "fc0f15f1"
+version = "0.8.0"
 default-features = false
-features = ["render", "png", "x11"]
+features = ["render", "png", "x11", "dynamic"]

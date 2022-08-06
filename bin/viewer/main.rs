@@ -1,10 +1,9 @@
 use bevy::{
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
-    render::{options::WgpuOptions, render_resource::WgpuFeatures},
+    render::{settings::WgpuSettings, settings::WgpuFeatures},
 };
 use feldspar_map::MapPlugin;
-use feldspar_renderer::RenderPlugin;
 use smooth_bevy_cameras::{
     controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
@@ -17,11 +16,10 @@ fn main() {
         title: "Feldspar Map Viewer".to_string(),
         ..Default::default()
     };
-
     App::new()
         // Bevy
         .insert_resource(window_desc)
-        .insert_resource(WgpuOptions {
+        .insert_resource(WgpuSettings {
             features: WgpuFeatures::POLYGON_MODE_LINE,
             ..Default::default()
         })
@@ -30,7 +28,7 @@ fn main() {
         .add_plugin(WireframePlugin)
         // Feldspar
         .add_plugin(MapPlugin::default())
-        .add_plugin(RenderPlugin)
+        // .add_plugin(RenderPlugin)
         // Viewer
         .add_plugin(LookTransformPlugin)
         .add_plugin(FpsCameraPlugin::default())
@@ -54,7 +52,6 @@ fn setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) 
     let target = Vec3::new(0.0, 0.0, 0.0);
     commands.spawn_bundle(FpsCameraBundle::new(
         FpsCameraController::default(),
-        PerspectiveCameraBundle::default(),
         eye,
         target,
     ));

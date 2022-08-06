@@ -5,13 +5,19 @@ authors = ["Duncan <bonsairobo@gmail.com>"]
 edition = "2021"
 
 [workspace]
+resolver = "2"
 members = ["crates/*"]
 exclude = ["archived", "benches"]
 
 [profile]
-dev = { opt-level = 2 }
 release = { lto = "thin" }
 bench = { lto = "thin" }
+
+[profile.dev]
+opt-level = 2
+
+[profile.dev.package."*"]
+opt-level = 3
 
 [[bin]]
 name = "viewer"
@@ -28,10 +34,11 @@ feldspar-core = { path = "crates/feldspar-core", version = "0.1" }
 feldspar-map = { path = "crates/feldspar-map", version = "0.1", features = ["bevy_plugin"] }
 feldspar-renderer = { path = "crates/feldspar-renderer", version = "0.1" }
 
-smooth-bevy-cameras = { git = "https://github.com/bonsairobo/smooth-bevy-cameras", rev = "383de21c" }
+[dependencies.smooth-bevy-cameras]
+git = "https://github.com/bonsairobo/smooth-bevy-cameras"
+rev = "a1095b9bc563d459c79b59e12ef620fa4567e04e"
 
 [dependencies.bevy]
-git = "https://github.com/bevyengine/bevy"
-rev = "fc0f15f1"
+version = "0.8.0"
 default-features = false
-features = ["render", "png", "x11"]
+features = ["render", "png", "x11", "dynamic", "bevy_asset"]
