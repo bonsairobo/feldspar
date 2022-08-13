@@ -38,10 +38,18 @@ pub struct PendingLoadTasks {
     tasks: VecDeque<Task<LoadedBatch>>,
 }
 
+impl PendingLoadTasks {
+    pub fn new() -> Self {
+        PendingLoadTasks {
+            tasks: VecDeque::new()
+        }
+    }
+}
+
 pub fn loader_system(
     config: Res<MapConfig>,
     witness_transforms: Query<(&Witness, &Transform)>,
-    io_pool: Res<IoTaskPool>,
+    // io_pool: Res<IoTaskPool>,
     db: Res<Arc<MapDb>>, // PERF: better option than Arc?
     mut clipmap: ResMut<ChunkClipMap>,
     mut load_tasks: ResMut<PendingLoadTasks>,
@@ -82,6 +90,7 @@ pub fn loader_system(
 
             // Spawn a new task to load those nodes.
             let db_clone = db.clone();
+            let io_pool = IoTaskPool::get();
             let load_task = io_pool.spawn(async move {
                 // PERF: Should this batch be a single task?
                 LoadedBatch {
